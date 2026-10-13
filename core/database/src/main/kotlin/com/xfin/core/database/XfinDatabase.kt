@@ -28,7 +28,7 @@ import com.xfin.core.database.entity.SourceEntity
         ChannelFtsEntity::class,
         StagedChannelEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2)],
 )

@@ -8,8 +8,15 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PlayerRoute(val channelId: Long, val filter: String)
 
-fun NavGraphBuilder.playerScreen(onBack: () -> Unit) {
+/** Movie or episode playback from a library source, starting at [startMs]. */
+@Serializable
+data class VodPlayerRoute(val sourceId: Long, val itemId: String, val startMs: Long)
+
+fun NavGraphBuilder.playerScreen(onBack: () -> Unit, onPlayNext: (VodPlayerRoute) -> Unit = {}) {
     composable<PlayerRoute> {
         PlayerScreen(onBack = onBack)
+    }
+    composable<VodPlayerRoute> {
+        VodPlayerScreen(onBack = onBack, onPlayNext = onPlayNext)
     }
 }

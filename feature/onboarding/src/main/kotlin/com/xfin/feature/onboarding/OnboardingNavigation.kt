@@ -10,11 +10,15 @@ data object WelcomeRoute
 @Serializable
 data class AddSourceRoute(val kind: String)
 
-enum class SourceKind { M3U, XTREAM }
+@Serializable
+data object AddJellyfinRoute
+
+enum class SourceKind { M3U, XTREAM, JELLYFIN }
 
 fun NavGraphBuilder.onboardingScreens(
     onAddSource: (SourceKind) -> Unit,
     onSourceAdded: () -> Unit,
+    onJellyfinAdded: () -> Unit,
     onBack: () -> Unit,
 ) {
     composable<WelcomeRoute> {
@@ -22,5 +26,8 @@ fun NavGraphBuilder.onboardingScreens(
     }
     composable<AddSourceRoute> {
         AddSourceScreen(onDone = onSourceAdded, onBack = onBack)
+    }
+    composable<AddJellyfinRoute> {
+        AddJellyfinScreen(onDone = onJellyfinAdded, onBack = onBack)
     }
 }

@@ -18,6 +18,8 @@ work = "2.12.0"
 # Pinned to 1.9.x to stay binary compatible with Jellyfin's prebuilt FFmpeg decoder.
 media3 = "1.9.4"
 media3-ffmpeg = "1.9.0+1"
+jellyfin-sdk = "1.9.2"
+slf4j = "2.0.20"
 okhttp = "5.5.0"
 serialization = "1.11.0"
 coroutines = "1.11.0"
@@ -81,6 +83,8 @@ media3-exoplayer-dash = { module = "androidx.media3:media3-exoplayer-dash", vers
 media3-datasource-okhttp = { module = "androidx.media3:media3-datasource-okhttp", version.ref = "media3" }
 media3-ui-compose = { module = "androidx.media3:media3-ui-compose", version.ref = "media3" }
 media3-ffmpeg-decoder = { module = "org.jellyfin.media3:media3-ffmpeg-decoder", version.ref = "media3-ffmpeg" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+jellyfin-sdk = { module = "org.jellyfin.sdk:jellyfin-core", version.ref = "jellyfin-sdk" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 

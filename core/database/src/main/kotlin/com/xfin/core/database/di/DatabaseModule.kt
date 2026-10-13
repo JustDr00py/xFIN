@@ -7,6 +7,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.xfin.core.database.MIGRATION_2_3
 import com.xfin.core.database.MIGRATION_3_4
 import com.xfin.core.database.MIGRATION_4_5
+import com.xfin.core.database.MIGRATION_5_6
 import com.xfin.core.database.narrowFtsUpdateTriggers
 import com.xfin.core.database.XfinDatabase
 import com.xfin.core.database.dao.ChannelDao
@@ -26,7 +27,7 @@ object DatabaseModule {
     @Singleton
     fun database(@ApplicationContext context: Context): XfinDatabase =
         Room.databaseBuilder(context, XfinDatabase::class.java, "xfin.db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
             .addCallback(
                 object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) = narrowFtsUpdateTriggers(db)

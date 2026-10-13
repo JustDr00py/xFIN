@@ -211,22 +211,27 @@ private fun SourceItem(
                 val updated = source.lastRefreshedAt?.let {
                     DateUtils.getRelativeTimeSpanString(it, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)
                 }
-                Text(
-                    listOfNotNull(
-                        if (source.type == SourceType.XTREAM) "Xtream Codes" else "M3U",
-                        "${"%,d".format(source.channelCount)} channels",
-                        updated?.let { "updated $it" },
-                    ).joinToString(" · "),
-                )
-                source.lastError?.let { Text(it, color = MaterialTheme.colorScheme.error, maxLines = 2) }
-                GuideStatus(source, guideLoading, onEditGuide, onRefreshGuide)
+                if (source.type == SourceType.JELLYFIN) {
+                    Text(listOfNotNull("Jellyfin", source.username?.let { "signed in as $it" }).joinToString(" · "))
+                    Text(source.url.substringAfter("://"), maxLines = 1)
+                } else {
+                    Text(
+                        listOfNotNull(
+                            if (source.type == SourceType.XTREAM) "Xtream Codes" else "M3U",
+                            "${"%,d".format(source.channelCount)} channels",
+                            updated?.let { "updated $it" },
+                        ).joinToString(" · "),
+                    )
+                    source.lastError?.let { Text(it, color = MaterialTheme.colorScheme.error, maxLines = 2) }
+                    GuideStatus(source, guideLoading, onEditGuide, onRefreshGuide)
+                }
             }
         },
         trailingContent = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (refreshing) {
                     CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(20.dp).padding(2.dp))
-                } else {
+                } else if (source.type != SourceType.JELLYFIN) {
                     IconButton(onClick = onRefresh) { Icon(Icons.Rounded.Refresh, "Refresh ${source.name}") }
                 }
                 IconButton(onClick = onDelete) { Icon(Icons.Rounded.DeleteOutline, "Remove ${source.name}") }

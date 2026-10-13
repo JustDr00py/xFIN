@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.LiveTv
+import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,11 +38,13 @@ import com.xfin.core.designsystem.component.FocusSurface
 import com.xfin.core.designsystem.component.LocalIsTv
 import com.xfin.feature.guide.GuideRoute
 import com.xfin.feature.livetv.LiveTvRoute
+import com.xfin.feature.library.LibraryRoute
 import com.xfin.feature.settings.SettingsRoute
 
 enum class TopLevel(val route: Any, val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
     LIVE_TV(LiveTvRoute, "Live TV", Icons.Outlined.LiveTv, Icons.Rounded.LiveTv),
     GUIDE(GuideRoute, "Guide", Icons.Outlined.DateRange, Icons.Rounded.DateRange),
+    LIBRARY(LibraryRoute, "Library", Icons.Outlined.VideoLibrary, Icons.Rounded.VideoLibrary),
     SETTINGS(SettingsRoute, "Settings", Icons.Outlined.Settings, Icons.Rounded.Settings),
 }
 

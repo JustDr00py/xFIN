@@ -253,7 +253,13 @@ private fun qualityLabel(height: Int): String? = when {
 }
 
 @Composable
-internal fun ErrorCard(message: String, onRetry: () -> Unit, onNext: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ErrorCard(
+    message: String,
+    onRetry: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier,
+    nextLabel: String = "Next",
+) {
     val focus = remember { FocusRequester() }
     // Compact single row so the channel info underneath stays readable in landscape.
     Row(
@@ -273,7 +279,7 @@ internal fun ErrorCard(message: String, onRetry: () -> Unit, onNext: () -> Unit,
         Spacer(Modifier.width(16.dp))
         Text(message, color = Color.White, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(16.dp))
-        OutlinedButton(onClick = onNext) { Text("Next") }
+        OutlinedButton(onClick = onNext) { Text(nextLabel) }
         Spacer(Modifier.width(8.dp))
         Button(onClick = onRetry, modifier = Modifier.focusRequester(focus)) { Text("Retry") }
     }
@@ -335,7 +341,7 @@ internal fun OptionsPanel(
 }
 
 @Composable
-private fun PanelHeader(text: String) {
+internal fun PanelHeader(text: String) {
     Text(
         text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
@@ -345,7 +351,7 @@ private fun PanelHeader(text: String) {
 }
 
 @Composable
-private fun PanelItem(
+internal fun PanelItem(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,

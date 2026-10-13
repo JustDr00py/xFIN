@@ -105,6 +105,7 @@ internal fun AddSourceScreen(
                 when (state.kind) {
                     SourceKind.M3U -> M3uForm(state, viewModel)
                     SourceKind.XTREAM -> XtreamForm(state, viewModel)
+                    SourceKind.JELLYFIN -> Unit
                 }
 
                 AnimatedVisibility(state.error != null) {

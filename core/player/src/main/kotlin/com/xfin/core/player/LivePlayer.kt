@@ -153,8 +153,8 @@ class LivePlayer @Inject constructor(
         override fun onTracksChanged(tracks: Tracks) {
             _state.update {
                 it.copy(
-                    audioTracks = tracks.options(C.TRACK_TYPE_AUDIO),
-                    textTracks = tracks.options(C.TRACK_TYPE_TEXT),
+                    audioTracks = tracks.trackOptions(C.TRACK_TYPE_AUDIO),
+                    textTracks = tracks.trackOptions(C.TRACK_TYPE_TEXT),
                 )
             }
         }
@@ -190,33 +190,6 @@ class LivePlayer @Inject constructor(
                 else -> _state.update { it.copy(buffering = false, error = error.describe()) }
             }
         }
-    }
-
-    private fun Tracks.options(type: Int): List<TrackOption> = groups
-        .filter { it.type == type }
-        .flatMap { group ->
-            (0 until group.length).filter { group.isTrackSupported(it) }.map { i ->
-                val format = group.getTrackFormat(i)
-                val label = listOfNotNull(
-                    format.label,
-                    "Closed captions".takeIf {
-                        format.sampleMimeType == MimeTypes.APPLICATION_CEA608 ||
-                            format.sampleMimeType == MimeTypes.APPLICATION_CEA708
-                    },
-                    format.language?.let { java.util.Locale.forLanguageTag(it).displayLanguage.ifBlank { it } },
-                    format.sampleMimeType?.substringAfter('/')?.uppercase()?.takeIf { type == C.TRACK_TYPE_AUDIO },
-                    format.channelCount.takeIf { it > 0 && type == C.TRACK_TYPE_AUDIO }?.let { channelLabel(it) },
-                ).distinct().joinToString(" · ").ifBlank { "Track ${i + 1}" }
-                TrackOption(group, i, label, group.isTrackSelected(i))
-            }
-        }
-
-    private fun channelLabel(channels: Int) = when (channels) {
-        1 -> "Mono"
-        2 -> "Stereo"
-        6 -> "5.1"
-        8 -> "7.1"
-        else -> "${channels}ch"
     }
 
     private inline fun <reified T : Throwable> Throwable.hasCause(): Boolean {

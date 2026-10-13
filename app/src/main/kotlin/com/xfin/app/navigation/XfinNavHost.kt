@@ -16,6 +16,13 @@ import com.xfin.core.model.encode
 import com.xfin.feature.guide.GuideRoute
 import com.xfin.feature.guide.guideScreen
 import com.xfin.feature.livetv.LiveTvRoute
+import com.xfin.feature.library.ItemRoute
+import com.xfin.feature.library.LibraryRoute
+import com.xfin.feature.library.libraryScreens
+import com.xfin.feature.onboarding.AddJellyfinRoute
+import com.xfin.feature.onboarding.SourceKind
+import com.xfin.feature.player.VodPlayerRoute
+import com.xfin.app.SourceSummary
 import com.xfin.feature.livetv.liveTvScreen
 import com.xfin.feature.onboarding.AddSourceRoute
 import com.xfin.feature.onboarding.WelcomeRoute
@@ -26,13 +33,15 @@ import com.xfin.feature.settings.SettingsRoute
 import com.xfin.feature.settings.settingsScreen
 
 @Composable
-fun XfinNavHost(hasSources: Boolean, navController: NavHostController = rememberNavController()) {
+fun XfinNavHost(sources: SourceSummary, navController: NavHostController = rememberNavController()) {
+    val hasSources = sources.any
     val backStack by navController.currentBackStackEntryAsState()
     val destination = backStack?.destination
 
     // If every source gets removed, go back to onboarding.
     LaunchedEffect(hasSources) {
-        val onboarding = destination?.hasRoute<WelcomeRoute>() == true || destination?.hasRoute<AddSourceRoute>() == true
+        val onboarding = destination?.hasRoute<WelcomeRoute>() == true || destination?.hasRoute<AddSourceRoute>() == true ||
+            destination?.hasRoute<AddJellyfinRoute>() == true
         if (!hasSources && destination != null && !onboarding) {
             navController.navigate(WelcomeRoute) { popUpTo(0) { inclusive = true } }
         }
@@ -43,6 +52,7 @@ fun XfinNavHost(hasSources: Boolean, navController: NavHostController = remember
             current = when {
                 destination?.hasRoute<SettingsRoute>() == true -> TopLevel.SETTINGS
                 destination?.hasRoute<GuideRoute>() == true -> TopLevel.GUIDE
+                destination?.hasRoute<LibraryRoute>() == true -> TopLevel.LIBRARY
                 else -> TopLevel.LIVE_TV
             },
             onNavigate = { target ->
@@ -58,7 +68,13 @@ fun XfinNavHost(hasSources: Boolean, navController: NavHostController = remember
 
     // Decided once: changing NavHost's start destination later would reset the whole back stack
     // (e.g. the moment onboarding inserts its first source row).
-    val startDestination: Any = remember { if (hasSources) LiveTvRoute else WelcomeRoute }
+    val startDestination: Any = remember {
+        when {
+            sources.iptv -> LiveTvRoute
+            sources.library -> LibraryRoute
+            else -> WelcomeRoute
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -67,9 +83,14 @@ fun XfinNavHost(hasSources: Boolean, navController: NavHostController = remember
         exitTransition = { fadeOut() },
     ) {
         onboardingScreens(
-            onAddSource = { kind -> navController.navigate(AddSourceRoute(kind.name)) },
+            onAddSource = { kind ->
+                if (kind == SourceKind.JELLYFIN) navController.navigate(AddJellyfinRoute) else navController.navigate(AddSourceRoute(kind.name))
+            },
             onSourceAdded = {
                 navController.navigate(LiveTvRoute) { popUpTo(0) { inclusive = true } }
+            },
+            onJellyfinAdded = {
+                navController.navigate(LibraryRoute) { popUpTo(0) { inclusive = true } }
             },
             onBack = { navController.popBackStack() },
         )
@@ -91,6 +112,19 @@ fun XfinNavHost(hasSources: Boolean, navController: NavHostController = remember
             onAddSource = { navController.navigate(WelcomeRoute) },
             shell = shell,
         )
-        playerScreen(onBack = { navController.popBackStack() })
+        libraryScreens(
+            onOpenItem = { sourceId, itemId -> navController.navigate(ItemRoute(sourceId, itemId)) },
+            onOpenLibrary = { navController.navigate(it) },
+            onPlay = { sourceId, itemId, startMs -> navController.navigate(VodPlayerRoute(sourceId, itemId, startMs)) },
+            onConnect = { navController.navigate(AddJellyfinRoute) },
+            onBack = { navController.popBackStack() },
+            shell = shell,
+        )
+        playerScreen(
+            onBack = { navController.popBackStack() },
+            onPlayNext = { next ->
+                navController.navigate(next) { popUpTo<VodPlayerRoute> { inclusive = true } }
+            },
+        )
     }
 }

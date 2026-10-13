@@ -259,7 +259,7 @@ internal fun PlayerScreen(onBack: () -> Unit, viewModel: PlayerViewModel = hiltV
 
 /** Landscape, immersive and screen-on while the player is visible. */
 @Composable
-private fun FullscreenEffect(lockLandscape: Boolean) {
+internal fun FullscreenEffect(lockLandscape: Boolean) {
     val context = LocalContext.current
     val view = LocalView.current
     DisposableEffect(Unit) {

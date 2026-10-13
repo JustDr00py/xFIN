@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen().setKeepOnScreenCondition { viewModel.hasSources.value == null }
+        installSplashScreen().setKeepOnScreenCondition { viewModel.sources.value == null }
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -35,11 +35,11 @@ class MainActivity : ComponentActivity() {
         val isTv = getSystemService(UiModeManager::class.java)?.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
 
         setContent {
-            val hasSources by viewModel.hasSources.collectAsStateWithLifecycle()
+            val sources by viewModel.sources.collectAsStateWithLifecycle()
             CompositionLocalProvider(LocalIsTv provides isTv) {
                 XfinTheme {
                     Surface(color = MaterialTheme.colorScheme.background) {
-                        hasSources?.let { XfinNavHost(hasSources = it) }
+                        sources?.let { XfinNavHost(sources = it) }
                     }
                 }
             }

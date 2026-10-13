@@ -30,6 +30,9 @@ data class SourceEntity(
     val epgUpdatedAt: Long? = null,
     @ColumnInfo(defaultValue = "0") val epgProgramCount: Int = 0,
     val epgError: String? = null,
+    /** Jellyfin: the signed-in user and the server's id (the access token lives in passwordEnc). */
+    val userId: String? = null,
+    val serverId: String? = null,
 )
 
 @Entity(

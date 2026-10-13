@@ -34,6 +34,7 @@ data class AddSourceUiState(
         get() = !importing && when (kind) {
             SourceKind.M3U -> url.isNotBlank()
             SourceKind.XTREAM -> url.isNotBlank() && username.isNotBlank() && password.isNotBlank()
+            SourceKind.JELLYFIN -> false
         }
 }
 
@@ -69,6 +70,7 @@ class AddSourceViewModel @Inject constructor(
                 when (s.kind) {
                     SourceKind.M3U -> sources.addM3u(s.name, s.url, s.epgUrl, s.userAgent)
                     SourceKind.XTREAM -> sources.addXtream(s.name, s.url, s.username, s.password, s.output)
+                    SourceKind.JELLYFIN -> Unit
                 }
                 _state.update { it.copy(importing = false, done = true) }
             } catch (e: Exception) {

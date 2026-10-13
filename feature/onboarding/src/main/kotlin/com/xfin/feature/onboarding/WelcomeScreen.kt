@@ -92,9 +92,8 @@ internal fun WelcomeScreen(onAddSource: (SourceKind) -> Unit) {
                 SourceOption(
                     icon = Icons.Rounded.VideoLibrary,
                     title = "Jellyfin",
-                    subtitle = "Coming soon",
-                    onClick = {},
-                    enabled = false,
+                    subtitle = "Your movies and shows, with resume",
+                    onClick = { onAddSource(SourceKind.JELLYFIN) },
                     modifier = itemModifier,
                 )
             }
