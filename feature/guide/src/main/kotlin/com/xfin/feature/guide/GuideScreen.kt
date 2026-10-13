@@ -85,19 +85,22 @@ internal fun GuideScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Guide", style = MaterialTheme.typography.headlineMedium)
-            Spacer(Modifier.weight(1f))
+            Text("Guide", style = MaterialTheme.typography.headlineMedium, maxLines = 1, softWrap = false)
             if (refresh is EpgRefreshState.Running) {
                 CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
             }
-            TextButton(onClick = { picking = true }) {
-                Text(
-                    tabs.firstOrNull { it.filter == filter }?.label ?: "All channels",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 180.dp),
-                )
-                Icon(Icons.Rounded.ArrowDropDown, null)
+            // The picker takes whatever room is left and ellipsizes long group names, so the
+            // fixed-size buttons beside it never get squeezed.
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                TextButton(onClick = { picking = true }) {
+                    Text(
+                        tabs.firstOrNull { it.filter == filter }?.label ?: "All channels",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    Icon(Icons.Rounded.ArrowDropDown, null)
+                }
             }
             IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
             FilledTonalButton(onClick = {
@@ -105,7 +108,7 @@ internal fun GuideScreen(
             }) {
                 Icon(Icons.Rounded.Schedule, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Now")
+                Text("Now", maxLines = 1, softWrap = false)
             }
         }
 
