@@ -55,6 +55,12 @@ interface ChannelDao {
     )
     fun pageSearch(match: String): PagingSource<Int, ChannelRow>
 
+    @Query(
+        """$CHANNEL_WITH_FAV WHERE c.id IN (SELECT rowid FROM channels_fts WHERE channels_fts MATCH :match)
+        AND $VISIBLE $PLAYLIST_ORDER LIMIT :limit""",
+    )
+    suspend fun search(match: String, limit: Int): List<ChannelRow>
+
     // --- Zapping lineups: ids only, same order as browsing ---
 
     @Query("SELECT c.id FROM channels c WHERE $VISIBLE $PLAYLIST_ORDER")

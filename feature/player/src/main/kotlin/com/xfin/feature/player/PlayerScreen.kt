@@ -194,6 +194,7 @@ internal fun PlayerScreen(onBack: () -> Unit, viewModel: PlayerViewModel = hiltV
             onOptions = { panelOpen = true },
             onChannels = { guideOpen = true },
             onZap = { viewModel.zap(it); poke() },
+            onTogglePlay = { viewModel.livePlayer.togglePlay(); poke() },
         )
 
         val error = ui.resolveError ?: playback.error

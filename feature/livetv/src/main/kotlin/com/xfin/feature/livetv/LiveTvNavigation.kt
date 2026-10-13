@@ -11,9 +11,10 @@ data object LiveTvRoute
 
 fun NavGraphBuilder.liveTvScreen(
     onPlay: (channelId: Long, filter: ChannelFilter) -> Unit,
+    onSearch: () -> Unit,
     shell: @Composable (content: @Composable () -> Unit) -> Unit,
 ) {
     composable<LiveTvRoute> {
-        shell { LiveTvScreen(onPlay = onPlay) }
+        shell { LiveTvScreen(onPlay = onPlay, onSearch = onSearch) }
     }
 }

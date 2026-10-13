@@ -12,6 +12,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.xfin.core.model.ChannelFilter
 import com.xfin.core.model.encode
 import com.xfin.feature.guide.GuideRoute
 import com.xfin.feature.guide.guideScreen
@@ -20,6 +21,7 @@ import com.xfin.feature.library.ItemRoute
 import com.xfin.feature.library.LibraryRoute
 import com.xfin.feature.library.MoviesRoute
 import com.xfin.feature.library.SearchRoute
+import com.xfin.feature.library.SearchScope
 import com.xfin.feature.library.ShowsRoute
 import com.xfin.feature.library.libraryScreens
 import com.xfin.feature.onboarding.AddJellyfinRoute
@@ -108,6 +110,7 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
         )
         liveTvScreen(
             onPlay = { id, filter -> navController.navigate(PlayerRoute(id, filter.encode())) },
+            onSearch = { navController.navigate(SearchRoute(SearchScope.LIVE.name)) },
             shell = shell,
         )
         guideScreen(
@@ -131,7 +134,8 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
                 navController.navigate(VodPlayerRoute(sourceId, itemId, startMs, mediaSourceId))
             },
             onConnect = { navController.navigate(AddJellyfinRoute) },
-            onSearch = { navController.navigate(SearchRoute) },
+            onSearch = { navController.navigate(SearchRoute()) },
+            onPlayChannel = { channelId -> navController.navigate(PlayerRoute(channelId, ChannelFilter.All.encode())) },
             onOpenSettings = {
                 navController.navigate(SettingsRoute) {
                     popUpTo(navController.graph.findStartDestination().id) { saveState = true }

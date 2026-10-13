@@ -9,6 +9,16 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.ClosedCaption
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.ui.draw.clip
+import kotlin.math.roundToInt
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,6 +78,10 @@ import com.xfin.core.designsystem.component.formatTimeRange
 import com.xfin.core.player.LivePlayerState
 import com.xfin.core.player.TrackOption
 
+/**
+ * UHF-style live overlay: round controls on top, channel and programme info with stream facts at
+ * the bottom left, a control pill at the bottom right and the programme timeline underneath.
+ */
 @Composable
 internal fun ChannelOverlay(
     visible: Boolean,
@@ -81,45 +95,36 @@ internal fun ChannelOverlay(
     onOptions: () -> Unit,
     onChannels: () -> Unit,
     onZap: (Int) -> Unit,
+    onTogglePlay: () -> Unit,
 ) {
     AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize()) {
-            // Top bar (touch only; TV uses the remote's Back and OK).
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color(0x99000000), Color.Transparent, Color(0x33000000), Color(0xE6000000)))),
+        ) {
             if (!isTv) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Brush.verticalGradient(listOf(XfinColors.Scrim, Color.Transparent)))
-                        .safeDrawingPadding()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().safeDrawingPadding().padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = Color.White) }
+                    RoundButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", onBack)
                     Spacer(Modifier.weight(1f))
-                    if (ui.lineupSize > 1 && ui.hasMiniGuide) {
-                        IconButton(onClick = onChannels) {
-                            Icon(Icons.AutoMirrored.Rounded.ViewList, "Channel guide", tint = Color.White)
-                        }
+                    if (playback.audioTracks.size > 1 || playback.audioLanguage != null) {
+                        AudioChip(playback.audioLanguage, onOptions)
                     }
-                    IconButton(onClick = onFavorite) {
-                        val fav = ui.channel?.isFavorite == true
-                        Icon(
-                            if (fav) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                            if (fav) "Remove from favorites" else "Add to favorites",
-                            tint = if (fav) XfinColors.Favorite else Color.White,
-                        )
-                    }
-                    IconButton(onClick = onOptions) { Icon(Icons.Rounded.Tune, "Audio and subtitles", tint = Color.White) }
+                    if (ui.lineupSize > 1 && ui.hasMiniGuide) RoundButton(Icons.AutoMirrored.Rounded.ViewList, "Channel guide", onChannels)
+                    RoundButton(Icons.Rounded.MoreHoriz, "More", onOptions)
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
+            Column(
+                Modifier
+                    .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, XfinColors.Scrim, Color(0xF0000000))))
                     .safeDrawingPadding()
-                    .padding(start = 32.dp, end = 32.dp, top = 64.dp, bottom = if (isTv) 40.dp else 20.dp),
+                    .padding(start = 24.dp, end = 24.dp, bottom = if (isTv) 28.dp else 12.dp),
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     AnimatedContent(
@@ -127,17 +132,35 @@ internal fun ChannelOverlay(
                         contentKey = { it?.id },
                         transitionSpec = {
                             val dir = ui.direction
-                            (slideInVertically { h -> h * dir / 2 } + fadeIn()) togetherWith
-                                (slideOutVertically { h -> -h * dir / 2 } + fadeOut())
+                            (slideInVertically { h -> h * dir / 3 } + fadeIn()) togetherWith (slideOutVertically { h -> -h * dir / 3 } + fadeOut())
                         },
                         modifier = Modifier.weight(1f),
                         label = "channelInfo",
                     ) { channel ->
-                        if (channel != null) ChannelInfo(channel, ui, playback, nowNext.takeIf { channel.id == ui.channel?.id }, now, isTv)
+                        if (channel != null) {
+                            ChannelInfo(channel, ui, playback, nowNext.takeIf { channel.id == ui.channel?.id }, isTv)
+                        }
                     }
-                    if (ui.lineupSize > 1) {
-                        ZapHints(ui.next, ui.previous, isTv, onZap)
+                    if (!isTv) {
+                        ControlPill(
+                            playing = playback.playing,
+                            favorite = ui.channel?.isFavorite == true,
+                            onTogglePlay = onTogglePlay,
+                            onFavorite = onFavorite,
+                            onOptions = onOptions,
+                            modifier = Modifier.padding(start = 16.dp),
+                        )
                     }
+                }
+                Spacer(Modifier.height(14.dp))
+                Timeline(nowNext.takeIf { ui.channel != null }, now)
+                if (isTv) {
+                    Text(
+                        "▲▼ Change channel   ·   ◀ Channel guide   ·   OK Options   ·   0–9 Jump to number",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.45f),
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
                 }
             }
         }
@@ -145,90 +168,149 @@ internal fun ChannelOverlay(
 }
 
 @Composable
-private fun ChannelInfo(
-    channel: Channel,
-    ui: PlayerUiState,
-    playback: LivePlayerState,
-    nowNext: NowNext?,
-    now: Long,
-    isTv: Boolean,
-) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        ChannelLogo(
-            channel.name,
-            channel.logoUrl,
-            Modifier.size(width = if (isTv) 136.dp else 104.dp, height = if (isTv) 88.dp else 68.dp),
+private fun ChannelInfo(channel: Channel, ui: PlayerUiState, playback: LivePlayerState, nowNext: NowNext?, isTv: Boolean) {
+    val program = nowNext?.now
+    Column(Modifier.widthIn(max = if (isTv) 760.dp else 560.dp)) {
+        ChannelLogo(channel.name, channel.logoUrl, Modifier.size(width = if (isTv) 128.dp else 104.dp, height = if (isTv) 80.dp else 64.dp))
+        Spacer(Modifier.height(12.dp))
+        Text(
+            // With guide data the channel goes small and the programme big; without, show the group.
+            listOfNotNull(channel.number?.toString(), if (program != null) channel.name else channel.group).joinToString("  "),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.White.copy(alpha = 0.9f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        Spacer(Modifier.width(20.dp))
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                channel.number?.let {
-                    Text(it.toString(), style = MaterialTheme.typography.titleMedium, color = Color.White.copy(alpha = 0.7f))
-                }
-                LiveBadge()
-                qualityLabel(playback.videoHeight)?.let { Tag(it) }
-                if (channel.isFavorite) {
-                    Icon(Icons.Rounded.Star, null, tint = XfinColors.Favorite, modifier = Modifier.size(18.dp))
-                }
-            }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                channel.name,
-                style = if (isTv) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            ProgramInfo(nowNext, now, isTv)
-            Text(
-                buildString {
-                    append(channel.group)
-                    if (ui.lineupSize > 1) append("  ·  ${ui.position + 1} of ${"%,d".format(ui.lineupSize)}")
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.65f),
-                maxLines = 1,
-            )
-            if (isTv) {
-                Spacer(Modifier.height(10.dp))
+        Text(
+            program?.title ?: channel.name,
+            style = if (isTv) MaterialTheme.typography.displaySmall else MaterialTheme.typography.headlineMedium,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        program?.let { p ->
+            val text = listOfNotNull(
+                listOfNotNull(p.episode, p.subtitle).joinToString(" · ").ifEmpty { null },
+                p.description,
+            ).joinToString("  ")
+            if (text.isNotEmpty()) {
                 Text(
-                    "▲▼ Change channel   ·   ◀ Channel guide   ·   OK Options   ·   0–9 Jump to number",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.45f),
+                    text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.85f),
+                    maxLines = if (isTv) 3 else 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }
+        val chips = listOfNotNull(
+            ui.sourceName,
+            qualityLabel(playback.videoHeight),
+            playback.videoCodec,
+            playback.frameRate.takeIf { it > 0 }?.let { "${it.roundToInt()} FPS" },
+            when (playback.audioChannels) {
+                0 -> null
+                1 -> "MONO"
+                2 -> "STEREO"
+                6 -> "5.1"
+                8 -> "7.1"
+                else -> "${playback.audioChannels}CH"
+            },
+            channel.catchup?.takeIf { it.days > 0 }?.let { "CATCH-UP ${it.days}D" },
+        )
+        if (chips.isNotEmpty()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp)) {
+                chips.forEach { Tag(it.uppercase()) }
+            }
+        }
+    }
+}
+
+/** Programme progress with start time, LIVE, the current time and what's next. */
+@Composable
+private fun Timeline(nowNext: NowNext?, now: Long) {
+    val program = nowNext?.now
+    ProgressTrack(
+        program?.progress(now) ?: 1f,
+        Modifier.fillMaxWidth(),
+        height = 5.dp,
+        color = Color.White.copy(alpha = 0.85f),
+        trackColor = Color.White.copy(alpha = 0.22f),
+    )
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(program?.let { formatTime(it.start) }.orEmpty(), style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.8f))
+        Spacer(Modifier.weight(1f))
+        Box(Modifier.size(9.dp).background(XfinColors.Live, CircleShape))
+        Spacer(Modifier.width(6.dp))
+        Text("LIVE", style = MaterialTheme.typography.labelLarge, color = XfinColors.Live)
+        Spacer(Modifier.width(14.dp))
+        Text(formatTime(now), style = MaterialTheme.typography.labelLarge, color = Color.White)
+        nowNext?.next?.let { next ->
+            Spacer(Modifier.width(14.dp))
+            Text(
+                "${formatTime(next.start)} – ${next.title}",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White.copy(alpha = 0.8f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 320.dp),
+            )
+        }
     }
 }
 
 @Composable
-private fun ZapHints(next: Channel?, previous: Channel?, isTv: Boolean, onZap: (Int) -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.End,
-        modifier = Modifier.widthIn(max = 240.dp).padding(start = 16.dp),
-    ) {
-        next?.let { ZapHint(Icons.Rounded.KeyboardArrowUp, it.name, enabled = !isTv) { onZap(+1) } }
-        previous?.let { ZapHint(Icons.Rounded.KeyboardArrowDown, it.name, enabled = !isTv) { onZap(-1) } }
+private fun ControlPill(
+    playing: Boolean,
+    favorite: Boolean,
+    onTogglePlay: () -> Unit,
+    onFavorite: () -> Unit,
+    onOptions: () -> Unit,
+    modifier: Modifier,
+) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        RoundButton(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "Pause" else "Play", onTogglePlay)
+        Row(
+            Modifier.clip(CircleShape).background(Color(0x66303540)).padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onFavorite) {
+                Icon(
+                    if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    if (favorite) "Remove from favorites" else "Add to favorites",
+                    tint = if (favorite) XfinColors.Live else Color.White,
+                )
+            }
+            IconButton(onClick = onOptions) { Icon(Icons.Rounded.ClosedCaption, "Subtitles", tint = Color.White) }
+            IconButton(onClick = onOptions) { Icon(Icons.Rounded.GraphicEq, "Audio", tint = Color.White) }
+        }
     }
 }
 
 @Composable
-private fun ZapHint(icon: ImageVector, name: String, enabled: Boolean, onClick: () -> Unit) {
+private fun RoundButton(icon: ImageVector, description: String, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0x66303540))) {
+        Icon(icon, description, tint = Color.White)
+    }
+}
+
+@Composable
+private fun AudioChip(language: String?, onClick: () -> Unit) {
     Row(
-        modifier = Modifier
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(vertical = 4.dp, horizontal = 6.dp),
+        Modifier
+            .clip(CircleShape)
+            .background(Color(0x66303540))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            name,
+            language?.take(3)?.uppercase() ?: "AUDIO",
             style = MaterialTheme.typography.labelLarge,
-            color = Color.White.copy(alpha = 0.6f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
+            color = Color.White,
         )
-        Icon(icon, null, tint = Color.White.copy(alpha = 0.6f))
+        Icon(Icons.Rounded.KeyboardArrowDown, "Audio track", tint = Color.White, modifier = Modifier.size(18.dp))
     }
 }
 
@@ -236,11 +318,13 @@ private fun ZapHint(icon: ImageVector, name: String, enabled: Boolean, onClick: 
 private fun Tag(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.labelSmall,
-        color = Color.White,
+        style = MaterialTheme.typography.labelMedium,
+        color = Color.White.copy(alpha = 0.9f),
+        maxLines = 1,
         modifier = Modifier
-            .background(Color.White.copy(alpha = 0.16f), MaterialTheme.shapes.extraSmall)
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            // Dark backing keeps chips legible over bright video.
+            .background(Color(0xB3181B22), MaterialTheme.shapes.extraSmall)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }
 
@@ -383,40 +467,5 @@ internal fun PanelItem(
                 .background(Color.Transparent, MaterialTheme.shapes.small)
                 .clickable(onClick = onClick),
         ) { content() }
-    }
-}
-
-@Composable
-private fun ProgramInfo(nowNext: NowNext?, now: Long, isTv: Boolean) {
-    val current = nowNext?.now ?: return
-    Column(Modifier.padding(top = 6.dp, bottom = 4.dp).widthIn(max = if (isTv) 560.dp else 420.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                current.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-                formatTimeRange(current.start, current.end),
-                style = MaterialTheme.typography.labelMedium,
-                color = Color.White.copy(alpha = 0.6f),
-            )
-        }
-        Spacer(Modifier.height(6.dp))
-        ProgressTrack(current.progress(now), Modifier.fillMaxWidth(), height = 4.dp)
-        nowNext.next?.let { next ->
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Next  ${formatTime(next.start)}  ${next.title}",
-                style = MaterialTheme.typography.labelLarge,
-                color = Color.White.copy(alpha = 0.6f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
     }
 }

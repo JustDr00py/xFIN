@@ -3,6 +3,9 @@ package com.xfin.core.player
 import android.content.Context
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.Format
+import androidx.media3.exoplayer.DecoderReuseEvaluation
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
@@ -45,6 +48,12 @@ data class LivePlayerState(
     val audioTracks: List<TrackOption> = emptyList(),
     val textTracks: List<TrackOption> = emptyList(),
     val videoHeight: Int = 0,
+    val playing: Boolean = false,
+    /** Stream facts for the info chips; 0/null when unknown. */
+    val frameRate: Float = 0f,
+    val audioChannels: Int = 0,
+    val audioLanguage: String? = null,
+    val videoCodec: String? = null,
 )
 
 /**
@@ -90,6 +99,36 @@ class LivePlayer @Inject constructor(
         .apply {
             playWhenReady = true
             addListener(Listener())
+            // Formats are only final once the decoders see them (frame rate, channels, language).
+            addAnalyticsListener(
+                object : AnalyticsListener {
+                    override fun onVideoInputFormatChanged(
+                        eventTime: AnalyticsListener.EventTime,
+                        format: Format,
+                        decoderReuseEvaluation: DecoderReuseEvaluation?,
+                    ) {
+                        _state.update {
+                            it.copy(
+                                frameRate = format.frameRate.takeIf { r -> r > 0 } ?: it.frameRate,
+                                videoCodec = format.sampleMimeType?.let(::codecName) ?: it.videoCodec,
+                            )
+                        }
+                    }
+
+                    override fun onAudioInputFormatChanged(
+                        eventTime: AnalyticsListener.EventTime,
+                        format: Format,
+                        decoderReuseEvaluation: DecoderReuseEvaluation?,
+                    ) {
+                        _state.update {
+                            it.copy(
+                                audioChannels = format.channelCount.takeIf { c -> c > 0 } ?: it.audioChannels,
+                                audioLanguage = format.language?.takeUnless { l -> l == "und" || l.isBlank() } ?: it.audioLanguage,
+                            )
+                        }
+                    }
+                },
+            )
         }
 
     fun play(stream: PlayableStream) {
@@ -114,6 +153,23 @@ class LivePlayer @Inject constructor(
             .setTrackTypeDisabled(option.group.type, false)
             .setOverrideForType(TrackSelectionOverride(option.group.mediaTrackGroup, option.index))
             .build()
+    }
+
+    fun togglePlay() {
+        if (player.isPlaying) {
+            player.pause()
+        } else {
+            player.play()
+        }
+    }
+
+    private fun codecName(mime: String): String? = when (mime) {
+        MimeTypes.VIDEO_H264 -> "H.264"
+        MimeTypes.VIDEO_H265 -> "HEVC"
+        MimeTypes.VIDEO_AV1 -> "AV1"
+        MimeTypes.VIDEO_VP9 -> "VP9"
+        MimeTypes.VIDEO_MPEG2 -> "MPEG-2"
+        else -> null
     }
 
     fun disableSubtitles() {
@@ -151,16 +207,27 @@ class LivePlayer @Inject constructor(
         }
 
         override fun onTracksChanged(tracks: Tracks) {
+            val video = player.videoFormat
+            val audio = player.audioFormat
             _state.update {
                 it.copy(
                     audioTracks = tracks.trackOptions(C.TRACK_TYPE_AUDIO),
                     textTracks = tracks.trackOptions(C.TRACK_TYPE_TEXT),
+                    frameRate = video?.frameRate?.takeIf { r -> r > 0 } ?: 0f,
+                    videoCodec = video?.sampleMimeType?.let(::codecName),
+                    audioChannels = audio?.channelCount?.takeIf { c -> c > 0 } ?: 0,
+                    audioLanguage = audio?.language?.takeUnless { l -> l == "und" || l.isBlank() },
                 )
             }
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
-            _state.update { it.copy(videoHeight = videoSize.height) }
+            val rate = player.videoFormat?.frameRate?.takeIf { it > 0 }
+            _state.update { it.copy(videoHeight = videoSize.height, frameRate = rate ?: it.frameRate) }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            _state.update { it.copy(playing = isPlaying) }
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -216,6 +283,9 @@ class LivePlayer @Inject constructor(
             when (status) {
                 401, 403 -> "The stream refused the connection ($status). It may be region-locked, or your subscription expired or hit its connection limit."
                 404 -> "This channel is currently unavailable (404)."
+                // Non-standard codes IPTV panels use when the account's connection limit is hit.
+                429, 456, 458, 460, 461 -> "The provider refused the stream ($status). Your account may be at its connection " +
+                    "limit, e.g. another device is watching."
                 else -> "The provider returned an error${status?.let { " ($it)" }.orEmpty()}."
             }
         }

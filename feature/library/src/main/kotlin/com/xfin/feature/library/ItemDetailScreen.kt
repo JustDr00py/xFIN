@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
@@ -77,23 +78,22 @@ internal fun ItemDetailScreen(
     onBack: () -> Unit,
     viewModel: ItemDetailViewModel = hiltViewModel(),
 ) {
-    // Versions were fetched with the details, so the picker opens instantly; one version plays directly.
-    var pending by remember { mutableStateOf<PendingPlay?>(null) }
+    // The version is chosen up front from a dropdown next to Play (remembered per title), so Play
+    // always starts immediately.
+    val chosen by viewModel.chosen.collectAsStateWithLifecycle()
+    var picking by remember { mutableStateOf<MediaItem?>(null) }
     val play: (MediaItem, Long) -> Unit = { target, startMs ->
-        if (target.versions.size > 1) {
-            pending = PendingPlay(target, startMs)
-        } else {
-            onPlay(viewModel.sourceId, target.id, startMs, target.versions.firstOrNull()?.id)
-        }
+        onPlay(viewModel.sourceId, target.id, startMs, viewModel.versionFor(target)?.id)
     }
-    pending?.let { p ->
+    picking?.let { target ->
         VersionPicker(
-            pending = p,
+            item = target,
+            selectedId = chosen[target.id] ?: viewModel.versionFor(target)?.id,
             onPick = { version ->
-                pending = null
-                onPlay(viewModel.sourceId, p.item.id, p.startMs, version.id)
+                viewModel.chooseVersion(target, version)
+                picking = null
             },
-            onDismiss = { pending = null },
+            onDismiss = { picking = null },
         )
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -173,15 +173,14 @@ internal fun ItemDetailScreen(
                             modifier = Modifier.padding(top = 4.dp),
                         )
                     }
-                    if (item.versions.size > 1) {
-                        Text(
-                            "${item.versions.size} versions",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
                     Spacer(Modifier.height(20.dp))
+                    val target = if (item.kind == MediaKind.SERIES) state.upNext else item
+                    if (target != null && target.versions.size > 1) {
+                        // Reading `chosen` keeps this in sync after a pick.
+                        val selected = chosen[target.id].let { viewModel.versionFor(target) }
+                        VersionDropdown(selected, target.versions.size) { picking = target }
+                        Spacer(Modifier.height(12.dp))
+                    }
                     Actions(item, state.upNext, playFocus, play, viewModel::togglePlayed)
                     item.overview?.let { Overview(it, Modifier.padding(top = 20.dp)) }
                 }
@@ -352,5 +351,27 @@ private fun EpisodeRow(episode: MediaItem, gutter: androidx.compose.ui.unit.Dp, 
                 }
             }
         }
+    }
+}
+
+/** Shows the version Play will use; opens the version list. */
+@Composable
+private fun VersionDropdown(selected: com.xfin.core.model.MediaVersion?, count: Int, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, modifier = Modifier.widthIn(max = 520.dp)) {
+        Column(Modifier.weight(1f, fill = false)) {
+            Text(
+                "Version · $count available",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                selected?.name ?: "Default",
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(Icons.Rounded.ExpandMore, "Choose version")
     }
 }

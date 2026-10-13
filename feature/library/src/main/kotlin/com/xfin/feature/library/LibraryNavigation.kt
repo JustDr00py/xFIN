@@ -21,8 +21,9 @@ data object MoviesRoute
 @Serializable
 data object ShowsRoute
 
+/** [scope] is a [SearchScope] name; Library by default so huge channel lists don't drown titles. */
 @Serializable
-data object SearchRoute
+data class SearchRoute(val scope: String = SearchScope.LIBRARY.name)
 
 fun NavGraphBuilder.libraryScreens(
     onOpenItem: (sourceId: Long, itemId: String) -> Unit,
@@ -31,6 +32,7 @@ fun NavGraphBuilder.libraryScreens(
     onConnect: () -> Unit,
     onSearch: () -> Unit,
     onOpenSettings: () -> Unit,
+    onPlayChannel: (channelId: Long) -> Unit,
     onBack: () -> Unit,
     shell: @Composable (content: @Composable () -> Unit) -> Unit,
 ) {
@@ -53,7 +55,7 @@ fun NavGraphBuilder.libraryScreens(
         shell { CatalogScreen(MediaKind.SERIES, onOpenItem = onOpenItem, onSearch = onSearch, onConnect = onConnect) }
     }
     composable<SearchRoute> {
-        SearchScreen(onOpenItem = onOpenItem, onBack = onBack)
+        SearchScreen(onOpenItem = onOpenItem, onPlayChannel = onPlayChannel, onBack = onBack)
     }
     composable<LibraryGridRoute> {
         LibraryGridScreen(onOpenItem = onOpenItem, onBack = onBack)

@@ -17,6 +17,7 @@ import com.xfin.core.player.LivePlayer
 import com.xfin.core.player.LivePlayerState
 import com.xfin.data.sources.ChannelRepository
 import com.xfin.data.sources.EpgRepository
+import com.xfin.data.sources.SourceRepository
 import com.xfin.data.sources.Perf
 import com.xfin.data.sources.minuteTicks
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -48,6 +49,8 @@ data class PlayerUiState(
     val numberEntry: String = "",
     val resolveError: String? = null,
     val hasMiniGuide: Boolean = false,
+    /** Name of the playlist/provider the channel comes from. */
+    val sourceName: String? = null,
 )
 
 @OptIn(UnstableApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -56,8 +59,12 @@ class PlayerViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val channels: ChannelRepository,
     private val epg: EpgRepository,
+    sources: SourceRepository,
     val livePlayer: LivePlayer,
 ) : ViewModel() {
+    private val sourceNames: StateFlow<Map<Long, String>> = sources.observeSources()
+        .map { list -> list.associate { it.id to it.name } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     private val route = savedState.toRoute<PlayerRoute>()
     private val filter = decodeChannelFilter(route.filter)
@@ -178,6 +185,7 @@ class PlayerViewModel @Inject constructor(
                 next = neighbour(index, +1)?.let(details::get),
                 previous = neighbour(index, -1)?.let(details::get),
                 direction = direction,
+                sourceName = (details[id] ?: it.channel)?.sourceId?.let(sourceNames.value::get),
                 resolveError = null,
             )
         }
@@ -185,7 +193,7 @@ class PlayerViewModel @Inject constructor(
         showJob = viewModelScope.launch {
             val channel = load(id)
             if (_ui.value.position != index) return@launch
-            _ui.update { it.copy(channel = channel ?: it.channel) }
+            _ui.update { it.copy(channel = channel ?: it.channel, sourceName = channel?.sourceId?.let(sourceNames.value::get) ?: it.sourceName) }
             prefetchAround(index)
             if (_ui.value.position != index) return@launch
             _ui.update {

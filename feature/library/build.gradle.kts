@@ -8,5 +8,6 @@ android {
 
 dependencies {
     implementation(project(":data:jellyfin"))
+    implementation(project(":data:sources"))
     implementation(libs.paging.compose)
 }

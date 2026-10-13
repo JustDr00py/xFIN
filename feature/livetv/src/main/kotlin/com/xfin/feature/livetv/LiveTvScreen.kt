@@ -11,6 +11,7 @@ import com.xfin.core.model.ChannelFilter
 @Composable
 internal fun LiveTvScreen(
     onPlay: (channelId: Long, filter: ChannelFilter) -> Unit,
+    onSearch: () -> Unit,
     viewModel: LiveTvViewModel = hiltViewModel(),
 ) {
     val tabs by viewModel.tabs.collectAsStateWithLifecycle()
@@ -35,7 +36,7 @@ internal fun LiveTvScreen(
         onPlay = { onPlay(it.id, viewModel.playbackFilter()) },
         onToggleFavorite = viewModel::toggleFavorite,
     )
-    if (LocalIsTv.current) TvLiveTv(state) else PhoneLiveTv(state)
+    if (LocalIsTv.current) TvLiveTv(state) else PhoneLiveTv(state, onSearch)
 }
 
 internal class LiveTvState(

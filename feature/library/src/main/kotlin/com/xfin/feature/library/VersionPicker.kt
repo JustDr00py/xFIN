@@ -1,6 +1,10 @@
 package com.xfin.feature.library
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,13 +30,11 @@ import com.xfin.core.designsystem.component.FocusSurface
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaVersion
 
-/** A play request waiting for the user to pick which file to play. */
-internal data class PendingPlay(val item: MediaItem, val startMs: Long)
-
-/** Shown after pressing Play when a title has more than one version (e.g. 4K and 1080p). */
+/** Lets the user choose which version of [item] Play will use (e.g. 4K or 1080p). */
 @Composable
 internal fun VersionPicker(
-    pending: PendingPlay,
+    item: MediaItem,
+    selectedId: String?,
     onPick: (MediaVersion) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -45,12 +47,12 @@ internal fun VersionPicker(
         ) {
             Column(Modifier.padding(vertical = 20.dp)) {
                 Text(
-                    "Choose a version",
+                    "Version",
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(horizontal = 24.dp),
                 )
                 Text(
-                    listOfNotNull(pending.item.seriesName, pending.item.episodeLabel, pending.item.name).distinct().joinToString(" · "),
+                    listOfNotNull(item.seriesName, item.episodeLabel, item.name).distinct().joinToString(" · "),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -58,7 +60,7 @@ internal fun VersionPicker(
                 )
                 Spacer(Modifier.height(8.dp))
                 LazyColumn(Modifier.fillMaxWidth()) {
-                    itemsIndexed(pending.item.versions, key = { _, v -> v.id }) { index, version ->
+                    itemsIndexed(item.versions, key = { _, v -> v.id }) { index, version ->
                         FocusSurface(
                             onClick = { onPick(version) },
                             shape = MaterialTheme.shapes.medium,
@@ -66,10 +68,15 @@ internal fun VersionPicker(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 4.dp)
-                                .then(if (index == 0) Modifier.focusRequester(first) else Modifier),
+                                .then(if (version.id == (selectedId ?: item.versions.first().id)) Modifier.focusRequester(first) else Modifier),
                         ) {
                             Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-                                Text(version.name, style = MaterialTheme.typography.titleMedium)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(version.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                                    if (version.id == selectedId) {
+                                        Icon(Icons.Rounded.Check, "Selected", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
                                 if (version.details.isNotEmpty()) {
                                     Text(
                                         version.details,

@@ -73,7 +73,7 @@ import com.xfin.core.model.Channel
 import com.xfin.core.model.RefreshState
 
 @Composable
-internal fun PhoneLiveTv(state: LiveTvState) {
+internal fun PhoneLiveTv(state: LiveTvState, onSearch: () -> Unit) {
     var searching by rememberSaveable { mutableStateOf(false) }
     val wide = windowWidthDp() >= 600
 
@@ -82,10 +82,8 @@ internal fun PhoneLiveTv(state: LiveTvState) {
             searching = searching,
             query = state.query,
             onQuery = state.onQuery,
-            onToggleSearch = {
-                searching = !searching
-                if (!searching) state.onQuery("")
-            },
+            // Search opens the app-wide search, scoped to live TV.
+            onToggleSearch = onSearch,
         )
         val refresh = state.refresh
         AnimatedVisibility(refresh is RefreshState.Running) {

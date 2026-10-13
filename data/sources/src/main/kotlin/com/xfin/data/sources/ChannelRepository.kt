@@ -58,6 +58,12 @@ class ChannelRepository @Inject internal constructor(
 
     suspend fun idsWithNumber(number: Int): List<Long> = channelDao.idsWithNumber(number)
 
+    /** The first [limit] channels matching [query], for global search. */
+    suspend fun search(query: String, limit: Int = 40): List<Channel> {
+        val match = ftsQuery(query) ?: return emptyList()
+        return channelDao.search(match, limit).map { it.toModel() }
+    }
+
     /** Channels by id, returned in the order of [ids]. */
     suspend fun channels(ids: List<Long>): List<Channel> {
         if (ids.isEmpty()) return emptyList()

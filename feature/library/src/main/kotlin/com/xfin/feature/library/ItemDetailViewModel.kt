@@ -7,6 +7,8 @@ import androidx.navigation.toRoute
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
 import com.xfin.data.jellyfin.JellyfinRepository
+import com.xfin.data.jellyfin.VersionPreferences
+import com.xfin.core.model.MediaVersion
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +33,24 @@ data class ItemDetailState(
 class ItemDetailViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val jellyfin: JellyfinRepository,
+    private val versions: VersionPreferences,
 ) : ViewModel() {
+    /** Version choices made on this page, on top of the remembered ones. */
+    private val _chosen = MutableStateFlow<Map<String, String>>(emptyMap())
+    val chosen: StateFlow<Map<String, String>> = _chosen.asStateFlow()
+
+    /** The version Play will use: this page's choice, the remembered one, else the server's first. */
+    fun versionFor(item: MediaItem): MediaVersion? {
+        if (item.versions.isEmpty()) return null
+        val id = _chosen.value[item.id] ?: versions.get(item.id)
+        return item.versions.firstOrNull { it.id == id } ?: item.versions.first()
+    }
+
+    fun chooseVersion(item: MediaItem, version: MediaVersion) {
+        versions.set(item.id, version.id)
+        _chosen.value = _chosen.value + (item.id to version.id)
+    }
+
     private val route = savedState.toRoute<ItemRoute>()
     val sourceId: Long = route.sourceId
 
