@@ -2,6 +2,12 @@ package com.xfin.core.database.di
 
 import android.content.Context
 import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.xfin.core.database.MIGRATION_2_3
+import com.xfin.core.database.MIGRATION_3_4
+import com.xfin.core.database.MIGRATION_4_5
+import com.xfin.core.database.narrowFtsUpdateTriggers
 import com.xfin.core.database.XfinDatabase
 import com.xfin.core.database.dao.ChannelDao
 import com.xfin.core.database.dao.ProgramDao
@@ -19,7 +25,14 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): XfinDatabase =
-        Room.databaseBuilder(context, XfinDatabase::class.java, "xfin.db").build()
+        Room.databaseBuilder(context, XfinDatabase::class.java, "xfin.db")
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+            .addCallback(
+                object : RoomDatabase.Callback() {
+                    override fun onOpen(db: SupportSQLiteDatabase) = narrowFtsUpdateTriggers(db)
+                },
+            )
+            .build()
 
     @Provides
     fun sourceDao(db: XfinDatabase): SourceDao = db.sourceDao()

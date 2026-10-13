@@ -70,3 +70,20 @@ fun NowPlayingLine(
 fun formatTime(millis: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(millis))
 
 fun formatTimeRange(start: Long, end: Long): String = "${formatTime(start)} – ${formatTime(end)}"
+
+/**
+ * Loads "on now" for one visible row. Reloads when the minute ticks or [guideVersion] changes;
+ * [load] is expected to be cached, so idle rows cost nothing.
+ */
+@androidx.compose.runtime.Composable
+fun rememberNowPlaying(
+    channel: com.xfin.core.model.Channel,
+    now: Long,
+    guideVersion: Int,
+    load: suspend (com.xfin.core.model.Channel, Long) -> ProgramSlot?,
+): ProgramSlot? {
+    val slot = androidx.compose.runtime.produceState(channel.nowPlaying, channel.id, channel.epgId, now / 60_000, guideVersion) {
+        value = load(channel, now)
+    }
+    return slot.value
+}

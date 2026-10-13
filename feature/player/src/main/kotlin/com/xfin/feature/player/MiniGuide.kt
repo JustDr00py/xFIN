@@ -14,7 +14,11 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.layout.height
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.itemKey
+import com.xfin.core.designsystem.component.rememberNowPlaying
+import com.xfin.core.model.ProgramSlot
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,9 +45,11 @@ import com.xfin.core.model.Channel
 /** UHF-style channel strip over the video: browse what's on and switch without leaving playback. */
 @Composable
 internal fun MiniGuide(
-    lineup: List<Channel>,
+    lineup: LazyPagingItems<Channel>,
     current: Int,
     now: Long,
+    guideVersion: Int,
+    nowPlaying: suspend (Channel, Long) -> ProgramSlot?,
     isTv: Boolean,
     onSelect: (Int) -> Unit,
 ) {
@@ -58,7 +64,12 @@ internal fun MiniGuide(
             .safeDrawingPadding(),
         contentPadding = PaddingValues(vertical = 20.dp, horizontal = 12.dp),
     ) {
-        itemsIndexed(lineup, key = { _, channel -> channel.id }) { index, channel ->
+        items(lineup.itemCount, key = lineup.itemKey { it.id }) { index ->
+            val channel = lineup[index]
+            if (channel == null) {
+                Spacer(Modifier.fillMaxWidth().height(56.dp))
+                return@items
+            }
             var focused by remember { mutableStateOf(false) }
             val selected = index == current
             Row(
@@ -97,7 +108,7 @@ internal fun MiniGuide(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    val playing = channel.nowPlaying
+                    val playing = rememberNowPlaying(channel, now, guideVersion, nowPlaying)
                     if (playing != null) {
                         Text(
                             playing.title,

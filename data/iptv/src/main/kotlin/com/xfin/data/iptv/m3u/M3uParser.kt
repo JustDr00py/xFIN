@@ -104,12 +104,43 @@ object M3uParser {
         return ExtInf(parseAttributes(attrPart), title.trim())
     }
 
-    private val ATTRIBUTE = Regex("""([A-Za-z0-9_-]+)=(?:"([^"]*)"|([^\s"]+))""")
-
-    internal fun parseAttributes(text: String): Map<String, String> =
-        ATTRIBUTE.findAll(text).associate { match ->
-            match.groupValues[1].lowercase() to (match.groups[2]?.value ?: match.groupValues[3]).trim()
+    /**
+     * Parses `key="value"` and `key=value` pairs. Hand-written: this runs for every channel and
+     * regex matching is several times slower on Android.
+     */
+    internal fun parseAttributes(text: String): Map<String, String> {
+        val result = HashMap<String, String>(8)
+        var i = 0
+        val n = text.length
+        while (i < n) {
+            // Key: [A-Za-z0-9_-]+ immediately followed by '='.
+            while (i < n && !text[i].isKeyChar()) i++
+            val keyStart = i
+            while (i < n && text[i].isKeyChar()) i++
+            if (i >= n || text[i] != '=' || i == keyStart) {
+                if (i == keyStart) i++
+                continue
+            }
+            val key = text.substring(keyStart, i).lowercase()
+            i++ // '='
+            val value: String
+            if (i < n && text[i] == '"') {
+                val end = text.indexOf('"', i + 1)
+                if (end < 0) break
+                value = text.substring(i + 1, end)
+                i = end + 1
+            } else {
+                val start = i
+                while (i < n && !text[i].isWhitespace() && text[i] != '"') i++
+                if (i == start) continue
+                value = text.substring(start, i)
+            }
+            result[key] = value.trim()
         }
+        return result
+    }
+
+    private fun Char.isKeyChar() = this in 'a'..'z' || this in 'A'..'Z' || this in '0'..'9' || this == '_' || this == '-'
 
     /** Kodi-style `http://url|User-Agent=x&Referer=y`. */
     private fun splitPipeHeaders(line: String): Pair<String, Map<String, String>> {

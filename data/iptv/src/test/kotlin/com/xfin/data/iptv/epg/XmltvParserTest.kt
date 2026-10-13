@@ -95,3 +95,16 @@ class XmltvParserTest {
         assertEquals("tf1", channelNameKey("FR: TF1 [Backup]"))
     }
 }
+
+class ChannelNameKeyTest {
+    @Test
+    fun `quality markers prefixes and punctuation are removed`() {
+        assertEquals("espn2", channelNameKey("US| ESPN 2 FHD"))
+        assertEquals("skysportsmainevent", channelNameKey("UK: Sky Sports Main Event H.265"))
+        assertEquals("canalplus", channelNameKey("Canal+ Plus [VIP] (Backup)"))
+        assertEquals("discovery", channelNameKey("  DE| Discovery 1080p 50fps"))
+        assertEquals("tf1", channelNameKey("TF1"))
+        assertEquals("rtlh2", channelNameKey("RTL h 2"))
+        assertEquals("caféfr", channelNameKey("Café FR"))
+    }
+}

@@ -81,7 +81,6 @@ internal fun ChannelOverlay(
     onOptions: () -> Unit,
     onChannels: () -> Unit,
     onZap: (Int) -> Unit,
-    peek: (Int) -> Channel?,
 ) {
     AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize()) {
@@ -97,7 +96,7 @@ internal fun ChannelOverlay(
                 ) {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = Color.White) }
                     Spacer(Modifier.weight(1f))
-                    if (ui.lineupSize > 1) {
+                    if (ui.lineupSize > 1 && ui.hasMiniGuide) {
                         IconButton(onClick = onChannels) {
                             Icon(Icons.AutoMirrored.Rounded.ViewList, "Channel guide", tint = Color.White)
                         }
@@ -137,7 +136,7 @@ internal fun ChannelOverlay(
                         if (channel != null) ChannelInfo(channel, ui, playback, nowNext.takeIf { channel.id == ui.channel?.id }, now, isTv)
                     }
                     if (ui.lineupSize > 1) {
-                        ZapHints(peek(+1), peek(-1), isTv, onZap)
+                        ZapHints(ui.next, ui.previous, isTv, onZap)
                     }
                 }
             }

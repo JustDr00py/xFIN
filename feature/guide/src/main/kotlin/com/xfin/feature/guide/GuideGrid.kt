@@ -163,7 +163,7 @@ fun GuideGrid(
     Column(modifier.scrollable(timeline.scrollable, Orientation.Horizontal)) {
         Row(Modifier.fillMaxWidth().height(36.dp)) {
             Box(Modifier.width(metrics.channelColumnWidth).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
-                DayLabel(timeline, Modifier.padding(start = 16.dp))
+                DayLabel(timeline, Modifier.padding(start = 12.dp))
             }
             TimeRuler(
                 timeline,
@@ -185,6 +185,7 @@ fun GuideGrid(
                             ProgramRow(
                                 channel = channel,
                                 timeline = timeline,
+                                isTv = isTv,
                                 now = now,
                                 guideVersion = guideVersion,
                                 loadPrograms = loadPrograms,
@@ -245,6 +246,7 @@ private fun ChannelCell(channel: Channel, metrics: GuideMetrics, onClick: (Chann
 private fun ProgramRow(
     channel: Channel,
     timeline: TimelineState,
+    isTv: Boolean,
     now: Long,
     guideVersion: Int,
     loadPrograms: suspend (Channel) -> List<Program>,
@@ -259,9 +261,10 @@ private fun ProgramRow(
         if (cells == null) return@Box
         val bucket = timeline.bucket
         val vp = max(timeline.viewport, 1)
-        // Compose one viewport either side so D-pad focus can always find a neighbour.
-        val from = (bucket - 1) * vp.toFloat()
-        val to = (bucket + 3) * vp.toFloat()
+        // The view spans buckets [bucket, bucket + 2). On TV compose one extra viewport either side
+        // so D-pad focus can always find a neighbour; touch needs only what can be visible.
+        val from = (if (isTv) bucket - 1 else bucket) * vp.toFloat()
+        val to = (if (isTv) bucket + 3 else bucket + 2) * vp.toFloat()
         var focusAssigned = false
         for (cell in cells) {
             val x = timeline.x(cell.start)
@@ -401,7 +404,15 @@ private fun TimeRuler(timeline: TimelineState, modifier: Modifier) {
 @Composable
 private fun DayLabel(timeline: TimelineState, modifier: Modifier) {
     val day by remember { derivedStateOf { dayLabel(timeline.timeAt(timeline.offset + timeline.viewport / 2f)) } }
-    Text(day, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = modifier)
+    Text(
+        day,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        modifier = modifier,
+    )
 }
 
 internal fun dayLabel(time: Long): String {

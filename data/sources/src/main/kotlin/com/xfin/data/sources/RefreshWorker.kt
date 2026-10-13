@@ -5,6 +5,8 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -40,8 +42,16 @@ class RefreshWorker @AssistedInject constructor(
                         .build(),
                 )
                 .build()
-            WorkManager.getInstance(context)
-                .enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+            val workManager = WorkManager.getInstance(context)
+            workManager.enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+            // Also catch up once per app start (e.g. after an upgrade or a long time offline).
+            workManager.enqueueUniqueWork(
+                "$NAME-startup",
+                ExistingWorkPolicy.KEEP,
+                OneTimeWorkRequestBuilder<RefreshWorker>()
+                    .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                    .build(),
+            )
         }
     }
 }

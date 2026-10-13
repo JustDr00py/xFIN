@@ -19,6 +19,7 @@ internal fun LiveTvScreen(
     val refresh by viewModel.refreshState.collectAsStateWithLifecycle()
     val channels = viewModel.channelPages.collectAsLazyPagingItems()
     val now by viewModel.now.collectAsStateWithLifecycle()
+    val guideVersion by viewModel.guideVersion.collectAsStateWithLifecycle()
 
     val state = LiveTvState(
         tabs = tabs,
@@ -27,6 +28,8 @@ internal fun LiveTvScreen(
         refresh = refresh,
         channels = channels,
         now = now,
+        guideVersion = guideVersion,
+        nowPlaying = viewModel::nowPlaying,
         onSelect = viewModel::select,
         onQuery = viewModel::search,
         onPlay = { onPlay(it.id, viewModel.playbackFilter()) },
@@ -42,6 +45,8 @@ internal class LiveTvState(
     val refresh: com.xfin.core.model.RefreshState,
     val channels: androidx.paging.compose.LazyPagingItems<com.xfin.core.model.Channel>,
     val now: Long,
+    val guideVersion: Int,
+    val nowPlaying: suspend (com.xfin.core.model.Channel, Long) -> com.xfin.core.model.ProgramSlot?,
     val onSelect: (ChannelFilter) -> Unit,
     val onQuery: (String) -> Unit,
     val onPlay: (com.xfin.core.model.Channel) -> Unit,

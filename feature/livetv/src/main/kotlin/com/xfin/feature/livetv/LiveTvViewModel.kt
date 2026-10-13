@@ -4,7 +4,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
-import androidx.paging.PagingSource
 import androidx.paging.cachedIn
 import com.xfin.core.model.Channel
 import com.xfin.core.model.ChannelFilter
@@ -12,7 +11,9 @@ import com.xfin.core.model.RefreshState
 import com.xfin.core.model.decodeChannelFilter
 import com.xfin.core.model.encode
 import com.xfin.data.sources.ChannelRepository
+import com.xfin.data.sources.EpgRepository
 import com.xfin.data.sources.SourceRepository
+import com.xfin.core.model.ProgramSlot
 import com.xfin.data.sources.minuteTicks
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -25,7 +26,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -40,6 +40,7 @@ class LiveTvViewModel @Inject constructor(
     private val savedState: SavedStateHandle,
     private val channels: ChannelRepository,
     sources: SourceRepository,
+    private val epg: EpgRepository,
 ) : ViewModel() {
 
     private val _filter = MutableStateFlow(savedState.get<String>(KEY_FILTER)?.let(::decodeChannelFilter))
@@ -65,28 +66,24 @@ class LiveTvViewModel @Inject constructor(
     /** Wall clock, ticking each minute, so "on now" and progress bars stay current. */
     val now: StateFlow<Long> = minuteTicks().stateIn(viewModelScope, SharingStarted.Eagerly, System.currentTimeMillis())
 
-    @Volatile
-    private var liveSource: PagingSource<Int, *>? = null
-
     val channelPages: Flow<PagingData<Channel>> = combine(
         _filter,
         _query.debounce { if (it.isEmpty()) 0 else 250 }.distinctUntilChanged(),
     ) { filter, query -> filter to query }
         .flatMapLatest { (filter, query) ->
             // An active search always spans every channel.
-            channels.pagedChannels(
-                filter = if (query.isNotBlank()) ChannelFilter.All else filter ?: ChannelFilter.All,
-                query = query,
-                onSource = { liveSource = it },
-            )
+            channels.pagedChannels(filter = filter ?: ChannelFilter.All, query = query)
         }
         .cachedIn(viewModelScope)
 
     val refreshState: StateFlow<RefreshState> = sources.refreshState
 
+    val guideVersion: StateFlow<Int> = epg.observeGuideVersion()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    suspend fun nowPlaying(channel: Channel, now: Long): ProgramSlot? = epg.nowPlaying(channel, now)
+
     init {
-        // Re-query in place each minute so "on now" moves on without losing the scroll position.
-        viewModelScope.launch { now.drop(1).collect { liveSource?.invalidate() } }
         if (_filter.value == null) {
             viewModelScope.launch {
                 val hasFavorites = channels.observeHasFavorites().first()

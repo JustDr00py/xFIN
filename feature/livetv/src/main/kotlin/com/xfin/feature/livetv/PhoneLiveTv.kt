@@ -66,6 +66,7 @@ import androidx.paging.compose.itemKey
 import com.xfin.core.designsystem.component.ChannelLogo
 import com.xfin.core.designsystem.component.EmptyState
 import com.xfin.core.designsystem.component.NowPlayingLine
+import com.xfin.core.designsystem.component.rememberNowPlaying
 import com.xfin.core.designsystem.component.shimmer
 import com.xfin.core.designsystem.theme.XfinColors
 import com.xfin.core.model.Channel
@@ -207,7 +208,7 @@ private fun ChannelGrid(state: LiveTvState, columns: GridCells) {
                 if (channel == null) {
                     PlaceholderRow()
                 } else {
-                    ChannelRow(channel, state.now, state.onPlay, state.onToggleFavorite)
+                    ChannelRow(channel, state, state.onPlay, state.onToggleFavorite)
                 }
             }
         }
@@ -216,7 +217,7 @@ private fun ChannelGrid(state: LiveTvState, columns: GridCells) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChannelRow(channel: Channel, now: Long, onPlay: (Channel) -> Unit, onToggleFavorite: (Channel) -> Unit) {
+private fun ChannelRow(channel: Channel, state: LiveTvState, onPlay: (Channel) -> Unit, onToggleFavorite: (Channel) -> Unit) {
     val haptics = LocalHapticFeedback.current
     Row(
         modifier = Modifier
@@ -246,9 +247,9 @@ private fun ChannelRow(channel: Channel, now: Long, onPlay: (Channel) -> Unit, o
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(channel.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val playing = channel.nowPlaying
+            val playing = rememberNowPlaying(channel, state.now, state.guideVersion, state.nowPlaying)
             if (playing != null) {
-                NowPlayingLine(playing, now, Modifier.padding(top = 2.dp))
+                NowPlayingLine(playing, state.now, Modifier.padding(top = 2.dp))
             } else {
                 Text(
                     channel.group,

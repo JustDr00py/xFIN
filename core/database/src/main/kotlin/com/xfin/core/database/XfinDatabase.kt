@@ -7,6 +7,8 @@ import com.xfin.core.database.dao.ChannelDao
 import com.xfin.core.database.dao.ProgramDao
 import com.xfin.core.database.dao.SourceDao
 import com.xfin.core.database.entity.ChannelEntity
+import com.xfin.core.database.entity.ChannelFtsEntity
+import com.xfin.core.database.entity.StagedChannelEntity
 import com.xfin.core.database.entity.EpgChannelEntity
 import com.xfin.core.database.entity.FavoriteEntity
 import com.xfin.core.database.entity.HiddenGroupEntity
@@ -23,8 +25,10 @@ import com.xfin.core.database.entity.SourceEntity
         HiddenGroupEntity::class,
         ProgramEntity::class,
         EpgChannelEntity::class,
+        ChannelFtsEntity::class,
+        StagedChannelEntity::class,
     ],
-    version = 2,
+    version = 5,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2)],
 )

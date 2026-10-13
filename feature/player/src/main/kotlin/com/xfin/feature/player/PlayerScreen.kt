@@ -54,6 +54,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
+import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.media3.ui.compose.PlayerSurface
 import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
 import androidx.media3.ui.compose.modifiers.resizeWithContentScale
@@ -68,7 +69,8 @@ internal fun PlayerScreen(onBack: () -> Unit, viewModel: PlayerViewModel = hiltV
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val nowNext by viewModel.nowNext.collectAsStateWithLifecycle()
     val now by viewModel.now.collectAsStateWithLifecycle()
-    val lineup by viewModel.lineupState.collectAsStateWithLifecycle()
+    val guideVersion by viewModel.guideVersion.collectAsStateWithLifecycle()
+    val miniGuide = viewModel.miniGuide.collectAsLazyPagingItems()
     val player = viewModel.livePlayer.player
     val isTv = LocalIsTv.current
 
@@ -99,7 +101,6 @@ internal fun PlayerScreen(onBack: () -> Unit, viewModel: PlayerViewModel = hiltV
         }
     }
     LaunchedEffect(panelOpen, guideOpen) { if (!panelOpen && !guideOpen) focus.requestFocus() }
-    LaunchedEffect(guideOpen) { if (guideOpen) viewModel.refreshLineup() }
     BackHandler(enabled = panelOpen) { panelOpen = false }
     BackHandler(enabled = guideOpen) { guideOpen = false }
 
@@ -193,7 +194,6 @@ internal fun PlayerScreen(onBack: () -> Unit, viewModel: PlayerViewModel = hiltV
             onOptions = { panelOpen = true },
             onChannels = { guideOpen = true },
             onZap = { viewModel.zap(it); poke() },
-            peek = viewModel::peek,
         )
 
         val error = ui.resolveError ?: playback.error
@@ -226,9 +226,11 @@ internal fun PlayerScreen(onBack: () -> Unit, viewModel: PlayerViewModel = hiltV
             modifier = Modifier.align(Alignment.CenterStart),
         ) {
             MiniGuide(
-                lineup = lineup,
+                lineup = miniGuide,
                 current = ui.position,
                 now = now,
+                guideVersion = guideVersion,
+                nowPlaying = viewModel::nowPlaying,
                 isTv = isTv,
                 onSelect = {
                     viewModel.tuneTo(it)

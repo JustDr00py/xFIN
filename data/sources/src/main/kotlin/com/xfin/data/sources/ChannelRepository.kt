@@ -3,7 +3,6 @@ package com.xfin.data.sources
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
-import androidx.paging.PagingSource
 import androidx.paging.map
 import com.xfin.core.database.dao.ChannelDao
 import com.xfin.core.database.dao.SourceDao
@@ -18,6 +17,7 @@ import com.xfin.core.model.SourceType
 import com.xfin.core.model.XtreamOutput
 import com.xfin.data.iptv.xtream.XtreamClient
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 import javax.inject.Inject
@@ -30,40 +30,42 @@ class ChannelRepository @Inject internal constructor(
     private val sourceDao: SourceDao,
     private val credentials: SourceCredentials,
 ) {
-    /**
-     * Paged channels for browsing. [clock] selects the "on now" programme each page carries;
-     * call [PagingSource.invalidate] on the source passed to [onSource] to refresh it in place
-     * (keeps the scroll position, unlike building a new pager).
-     */
-    fun pagedChannels(
-        filter: ChannelFilter,
-        query: String,
-        clock: () -> Long = System::currentTimeMillis,
-        onSource: (PagingSource<Int, *>) -> Unit = {},
-    ): Flow<PagingData<Channel>> {
-        val q = query.trim()
+    /** Paged channels for browsing; a non-blank [query] searches every visible channel. */
+    fun pagedChannels(filter: ChannelFilter, query: String = ""): Flow<PagingData<Channel>> {
+        val match = ftsQuery(query)
+        if (query.isNotBlank() && match == null) return flowOf(PagingData.empty())
         return Pager(PagingConfig(pageSize = 60, prefetchDistance = 120, enablePlaceholders = true)) {
-            val now = clock()
-            when (filter) {
-                ChannelFilter.All -> channelDao.pageAll(q, now)
-                ChannelFilter.Favorites -> channelDao.pageFavorites(q, now)
-                ChannelFilter.Recent -> channelDao.pageRecent(q, now)
-                is ChannelFilter.Group -> channelDao.pageGroup(filter.name, q, now)
-            }.also(onSource)
+            when {
+                match != null -> channelDao.pageSearch(match)
+                filter == ChannelFilter.All -> channelDao.pageAll()
+                filter == ChannelFilter.Favorites -> channelDao.pageFavorites()
+                filter == ChannelFilter.Recent -> channelDao.pageRecent()
+                filter is ChannelFilter.Group -> channelDao.pageGroup(filter.name)
+                else -> channelDao.pageAll()
+            }
         }.flow.map { paging -> paging.map { it.toModel() } }
     }
 
-    /** Full ordered list used for zapping; same order as [pagedChannels]. */
-    suspend fun channels(filter: ChannelFilter, now: Long = System.currentTimeMillis()): List<Channel> = when (filter) {
-        ChannelFilter.All -> channelDao.listAll(now)
-        ChannelFilter.Favorites -> channelDao.listFavorites(now)
-        ChannelFilter.Recent -> channelDao.listRecent(now)
-        is ChannelFilter.Group -> channelDao.listGroup(filter.name, now)
-    }.map { it.toModel() }
+    /** Zapping lineup as ids only (100k channels is under 1 MB); same order as [pagedChannels]. */
+    suspend fun lineup(filter: ChannelFilter): LongArray = when (filter) {
+        ChannelFilter.All -> channelDao.idsAll()
+        ChannelFilter.Favorites -> channelDao.idsFavorites()
+        ChannelFilter.Recent -> channelDao.idsRecent()
+        is ChannelFilter.Group -> channelDao.idsGroup(filter.name)
+    }.toLongArray()
 
-    suspend fun channel(id: Long): Channel? = channelDao.get(id, System.currentTimeMillis())?.toModel()
+    suspend fun channel(id: Long): Channel? = channelDao.get(id)?.toModel()
 
-    fun observeChannel(id: Long): Flow<Channel?> = channelDao.observe(id, System.currentTimeMillis()).map { it?.toModel() }
+    suspend fun idsWithNumber(number: Int): List<Long> = channelDao.idsWithNumber(number)
+
+    /** Channels by id, returned in the order of [ids]. */
+    suspend fun channels(ids: List<Long>): List<Channel> {
+        if (ids.isEmpty()) return emptyList()
+        val byId = ids.chunked(500).flatMap { channelDao.getAll(it) }.associateBy { it.channel.id }
+        return ids.mapNotNull { byId[it]?.toModel() }
+    }
+
+    fun observeChannel(id: Long): Flow<Channel?> = channelDao.observe(id).map { it?.toModel() }
 
     fun observeGroups(): Flow<List<ChannelGroup>> = channelDao.observeGroups().map { rows -> rows.map { it.toModel() } }
 
@@ -88,7 +90,7 @@ class ChannelRepository @Inject internal constructor(
     }
 
     suspend fun resolveStream(channelId: Long): PlayableStream {
-        val row = channelDao.get(channelId, System.currentTimeMillis())?.channel ?: throw IOException("Channel no longer exists")
+        val row = channelDao.get(channelId)?.channel ?: throw IOException("Channel no longer exists")
         val source = sourceDao.get(row.sourceId) ?: throw IOException("Source no longer exists")
         return when (SourceType.valueOf(source.type)) {
             SourceType.XTREAM -> {
@@ -105,4 +107,31 @@ class ChannelRepository @Inject internal constructor(
             )
         }
     }
+}
+
+/**
+ * Turns user input into an FTS4 prefix query: "espn sp" -> "espn* sp*". Only letters and digits
+ * survive, so user input can never form FTS operators. Null when nothing searchable remains.
+ */
+internal fun ftsQuery(input: String): String? {
+    val tokens = input.lowercase()
+        .split { !it.isLetterOrDigit() }
+        .filter { it.isNotEmpty() }
+        .take(8)
+    return if (tokens.isEmpty()) null else tokens.joinToString(" ") { "$it*" }
+}
+
+private fun String.split(isSeparator: (Char) -> Boolean): List<String> {
+    val parts = ArrayList<String>()
+    val current = StringBuilder()
+    for (ch in this) {
+        if (isSeparator(ch)) {
+            if (current.isNotEmpty()) parts += current.toString()
+            current.clear()
+        } else {
+            current.append(ch)
+        }
+    }
+    if (current.isNotEmpty()) parts += current.toString()
+    return parts
 }

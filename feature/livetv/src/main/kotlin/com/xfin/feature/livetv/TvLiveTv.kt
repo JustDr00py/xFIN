@@ -51,6 +51,7 @@ import com.xfin.core.designsystem.component.ChannelLogo
 import com.xfin.core.designsystem.component.EmptyState
 import com.xfin.core.designsystem.component.FocusSurface
 import com.xfin.core.designsystem.component.NowPlayingLine
+import com.xfin.core.designsystem.component.rememberNowPlaying
 import com.xfin.core.designsystem.theme.XfinColors
 import com.xfin.core.model.Channel
 import com.xfin.core.model.ChannelFilter
@@ -171,7 +172,7 @@ private fun ChannelWall(state: LiveTvState, modifier: Modifier) {
                 items(channels.itemCount, key = channels.itemKey { it.id }) { index ->
                     val channel = channels[index]
                     if (channel != null) {
-                        ChannelCard(channel, state.now, state.onPlay, state.onToggleFavorite)
+                        ChannelCard(channel, state, state.onPlay, state.onToggleFavorite)
                     } else {
                         Box(Modifier.aspectRatio(16f / 11f))
                     }
@@ -182,7 +183,7 @@ private fun ChannelWall(state: LiveTvState, modifier: Modifier) {
 }
 
 @Composable
-private fun ChannelCard(channel: Channel, now: Long, onPlay: (Channel) -> Unit, onToggleFavorite: (Channel) -> Unit) {
+private fun ChannelCard(channel: Channel, state: LiveTvState, onPlay: (Channel) -> Unit, onToggleFavorite: (Channel) -> Unit) {
     FocusSurface(
         onClick = { onPlay(channel) },
         onLongClick = { onToggleFavorite(channel) },
@@ -219,7 +220,8 @@ private fun ChannelCard(channel: Channel, now: Long, onPlay: (Channel) -> Unit, 
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                channel.nowPlaying?.let { NowPlayingLine(it, now, Modifier.padding(top = 2.dp)) }
+                rememberNowPlaying(channel, state.now, state.guideVersion, state.nowPlaying)
+                    ?.let { NowPlayingLine(it, state.now, Modifier.padding(top = 2.dp)) }
             }
         }
     }

@@ -4,6 +4,8 @@ import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
+import androidx.room.Fts4
+import androidx.room.FtsOptions
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -42,8 +44,9 @@ data class SourceEntity(
     ],
     indices = [
         Index(value = ["sourceId", "channelKey"], unique = true),
-        Index(value = ["groupName"]),
-        Index(value = ["name"]),
+        // Playlist order, for "All channels" and per-group browsing without sorting the table.
+        Index(value = ["sourceId", "sortIndex"]),
+        Index(value = ["groupName", "sourceId", "sortIndex"]),
         Index(value = ["sourceId", "epgId"]),
     ],
 )
@@ -63,9 +66,45 @@ data class ChannelEntity(
     val catchupDays: Int = 0,
     val userAgent: String? = null,
     val referrer: String? = null,
-    val sortIndex: Int,
+    val sortIndex: Long,
     /** Guide channel id this channel is linked to (tvg-id or name match). */
     val epgId: String? = null,
+    /** Normalized name used to match guide channels (see channelNameKey). */
+    @ColumnInfo(defaultValue = "") val nameKey: String = "",
+    /** Normalized tvg-id used to match guide channels. */
+    val tvgKey: String? = null,
+)
+
+/** Full-text index over channel names; kept in sync with `channels` by Room's triggers. */
+@Fts4(contentEntity = ChannelEntity::class, tokenizer = FtsOptions.TOKENIZER_UNICODE61)
+@Entity(tableName = "channels_fts")
+data class ChannelFtsEntity(
+    val name: String,
+)
+
+/**
+ * Imports are written here first (in many short transactions, so readers are never blocked),
+ * then copied into `channels` with a single INSERT ... SELECT.
+ */
+@Entity(tableName = "channels_staging", indices = [Index(value = ["sourceId", "channelKey"])])
+data class StagedChannelEntity(
+    @PrimaryKey(autoGenerate = true) val stagingId: Long = 0,
+    val sourceId: Long,
+    val channelKey: String,
+    val name: String,
+    val number: Int? = null,
+    val logoUrl: String? = null,
+    val groupName: String,
+    val tvgId: String? = null,
+    val stream: String,
+    val catchupMode: String? = null,
+    val catchupSource: String? = null,
+    val catchupDays: Int = 0,
+    val userAgent: String? = null,
+    val referrer: String? = null,
+    val sortIndex: Long,
+    val nameKey: String,
+    val tvgKey: String? = null,
 )
 
 @Entity(
@@ -143,6 +182,9 @@ data class ProgramEntity(
 @Entity(
     tableName = "epg_channels",
     primaryKeys = ["sourceId", "epgId", "nameKey"],
+    // Covering (includes epgId) so the name lookup in guide linking uses it; without it SQLite
+    // scanned the primary key per channel (100k channels x 20k guide keys took minutes).
+    indices = [Index(value = ["sourceId", "nameKey", "epgId"])],
     foreignKeys = [
         ForeignKey(
             entity = SourceEntity::class,
@@ -158,21 +200,16 @@ data class EpgChannelEntity(
     val nameKey: String,
 )
 
-/** Channel row joined with per-user state and the programme airing at query time. */
+/** Channel row joined with per-user state. */
 data class ChannelRow(
     @Embedded val channel: ChannelEntity,
     @ColumnInfo(name = "isFavorite") val isFavorite: Boolean,
-    val nowTitle: String? = null,
-    val nowStart: Long? = null,
-    val nowEnd: Long? = null,
 )
 
-/** Minimal channel projection used when linking channels to guide data. */
-data class ChannelLinkRow(
-    val id: Long,
-    val tvgId: String?,
-    val name: String,
-    val epgId: String?,
+/** Match keys of a source's channels, used to pick which guide programmes to keep. */
+data class ChannelMatchKeys(
+    val tvgKey: String?,
+    val nameKey: String,
 )
 
 data class GroupRow(

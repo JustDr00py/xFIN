@@ -12,6 +12,7 @@ import com.xfin.core.model.Channel
 import com.xfin.core.model.EpgRefreshState
 import com.xfin.core.model.NowNext
 import com.xfin.core.model.Program
+import com.xfin.core.model.ProgramSlot
 import com.xfin.core.model.SourceType
 import com.xfin.data.iptv.epg.EpgLoader
 import com.xfin.data.iptv.epg.channelNameKey
@@ -72,6 +73,26 @@ class EpgRepository @Inject internal constructor(
 
     suspend fun program(id: Long): Program? = programDao.get(id)?.toModel()
 
+    private val nowCache = android.util.LruCache<Long, CachedSlot>(2_000)
+
+    private class CachedSlot(val slot: ProgramSlot?, val validUntil: Long, val generation: Long)
+
+    @Volatile
+    private var cacheGeneration = 0L
+
+    /**
+     * What's on now for a list row. Cached until the programme ends (or for a minute when there
+     * is none) and dropped whenever a new guide is swapped in.
+     */
+    suspend fun nowPlaying(channel: Channel, now: Long = System.currentTimeMillis()): ProgramSlot? {
+        if (channel.epgId == null) return null
+        nowCache.get(channel.id)?.let { if (it.generation == cacheGeneration && now < it.validUntil) return it.slot }
+        val current = nowNext(channel, now).now
+        val slot = current?.slot()
+        nowCache.put(channel.id, CachedSlot(slot, current?.end ?: (now + 60_000), cacheGeneration))
+        return slot
+    }
+
     suspend fun setEpgUrl(sourceId: Long, url: String?) {
         sourceDao.setEpgUrl(sourceId, url?.trim()?.ifEmpty { null })
         launchRefresh(sourceId)
@@ -98,16 +119,19 @@ class EpgRepository @Inject internal constructor(
         val url = credentials.epgUrl(source) ?: return
         _state.value = EpgRefreshState.Running(sourceId, 0)
         try {
-            val file = loader.download(url, source.userAgent)
+            val file = Perf.time("guide download #$sourceId") { loader.download(url, source.userAgent) }
             val result = try {
-                writeGeneration(source, file)
+                Perf.time("guide parse+insert #$sourceId") { writeGeneration(source, file) }
             } finally {
                 file.delete()
             }
             if (result.count == 0) throw IllegalStateException("The guide has no programmes for your channels")
-            swap(source, result)
+            Perf.log("guide #$sourceId: ${result.count} programmes, ${result.epgChannels.size} guide channel keys")
+            Perf.time("guide swap+link #$sourceId") { swap(source, result) }
             // Old generations are already invisible; remove them in small chunks.
-            while (programDao.deleteOtherGenerations(sourceId, result.generation, 5_000) > 0) Unit
+            Perf.time("guide cleanup #$sourceId") {
+                while (programDao.deleteOtherGenerations(sourceId, result.generation, 5_000) > 0) Unit
+            }
         } catch (e: Exception) {
             sourceDao.markEpgFailed(sourceId, e.message ?: e::class.simpleName.orEmpty())
             throw e
@@ -119,9 +143,9 @@ class EpgRepository @Inject internal constructor(
     private class ImportResult(val generation: Int, val count: Int, val epgChannels: List<EpgChannelEntity>)
 
     private suspend fun writeGeneration(source: SourceEntity, file: java.io.File): ImportResult {
-        val links = channelDao.linkRows(source.id)
-        val wantedIds = links.mapNotNullTo(HashSet()) { it.tvgId?.let(::epgIdKey) }
-        val wantedNames = links.mapTo(HashSet()) { channelNameKey(it.name) }.apply { remove("") }
+        val keys = channelDao.matchKeys(source.id)
+        val wantedIds = keys.mapNotNullTo(HashSet()) { it.tvgKey }
+        val wantedNames = keys.mapTo(HashSet()) { it.nameKey }.apply { remove("") }
 
         val now = System.currentTimeMillis()
         val windowStart = now - TimeUnit.DAYS.toMillis(PAST_DAYS)
@@ -136,7 +160,7 @@ class EpgRepository @Inject internal constructor(
 
         coroutineScope {
             val pipe = Pipe<ProgramEntity>(capacity = BATCH_SIZE * 2)
-            launch(Dispatchers.IO) {
+            launch(ImportDispatcher) {
                 try {
                     loader.parse(
                         file = file,
@@ -209,13 +233,11 @@ class EpgRepository @Inject internal constructor(
         db.withTransaction {
             programDao.deleteEpgChannels(source.id)
             result.epgChannels.chunked(BATCH_SIZE).forEach { programDao.insertEpgChannels(it) }
-            val linker = EpgLinker(result.epgChannels)
-            channelDao.linkRows(source.id).forEach { row ->
-                val epgId = linker.resolve(row.tvgId, row.name)
-                if (epgId != row.epgId) channelDao.setEpgId(row.id, epgId)
-            }
+            val linked = channelDao.linkGuide(source.id)
+            Perf.log("guide #${source.id}: relinked $linked channels")
             sourceDao.markEpgSwapped(source.id, result.generation, result.count, System.currentTimeMillis())
         }
+        cacheGeneration++
     }
 
     private companion object {

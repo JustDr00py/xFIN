@@ -6,12 +6,14 @@ import com.xfin.core.database.crypto.SecretCipher
 import com.xfin.core.database.dao.ChannelDao
 import com.xfin.core.database.dao.ProgramDao
 import com.xfin.core.database.dao.SourceDao
-import com.xfin.core.database.entity.ChannelEntity
+import com.xfin.core.database.entity.StagedChannelEntity
 import com.xfin.core.database.entity.SourceEntity
 import com.xfin.core.model.RefreshState
 import com.xfin.core.model.Source
 import com.xfin.core.model.SourceType
 import com.xfin.core.model.XtreamOutput
+import com.xfin.data.iptv.epg.channelNameKey
+import com.xfin.data.iptv.epg.epgIdKey
 import com.xfin.data.iptv.m3u.PlaylistLoader
 import com.xfin.data.iptv.xtream.XtreamCategory
 import com.xfin.data.iptv.xtream.XtreamClient
@@ -118,7 +120,17 @@ class SourceRepository @Inject internal constructor(
         sourceDao.get(sourceId)?.let { sourceDao.update(it.copy(name = name)) }
     }
 
-    suspend fun delete(sourceId: Long) = sourceDao.delete(sourceId)
+    /**
+     * Removes a source. Its guide and channels are deleted in small slices first; a single
+     * cascading delete of 100k channels and 700k programmes would hold the database for seconds.
+     */
+    suspend fun delete(sourceId: Long) = scope.async {
+        Perf.time("delete source #$sourceId") {
+            while (programDao.deleteOtherGenerations(sourceId, keep = -1, limit = 5_000) > 0) Unit
+            while (channelDao.deleteSlice(sourceId, limit = 2_000) > 0) Unit
+            sourceDao.delete(sourceId)
+        }
+    }.await()
 
     private suspend fun importOrRollback(id: Long): Long {
         try {
@@ -133,10 +145,10 @@ class SourceRepository @Inject internal constructor(
     }
 
     /**
-     * Replaces all channels of a source atomically. The playlist is downloaded to a temp file first
-     * (outside any transaction, so the UI keeps reading), then parsed on an IO thread and fed through
-     * a bounded channel into batched inserts: memory stays flat for huge playlists and a failure
-     * rolls back to the previous channel list.
+     * Replaces all channels of a source. The playlist is downloaded to a temp file and parsed on an
+     * IO thread into a staging table in many short transactions, so the UI keeps reading the old
+     * channels throughout. Only the final swap (copy, guide linking) runs in one transaction; a
+     * failure anywhere before it leaves the previous channel list untouched.
      *
      * Runs in the repository's own scope so leaving the screen that started it does not cancel it.
      */
@@ -145,12 +157,11 @@ class SourceRepository @Inject internal constructor(
     private suspend fun importNow(sourceId: Long) {
         val source = sourceDao.get(sourceId) ?: return
         _refreshState.value = RefreshState.Running(sourceId, 0)
-        val linker = EpgLinker(programDao.epgChannels(sourceId))
         try {
             when (SourceType.valueOf(source.type)) {
-                SourceType.M3U -> playlistLoader.stage(source.url, source.userAgent).use { staged ->
+                SourceType.M3U -> Perf.time("playlist download #$sourceId") { playlistLoader.stage(source.url, source.userAgent) }.use { staged ->
                     var discoveredEpg: String? = null
-                    replaceChannels(source) { emit -> produceM3u(source, staged, linker, emit) { discoveredEpg = it } }
+                    replaceChannels(source) { emit -> produceM3u(source, staged, emit) { discoveredEpg = it } }
                     if (source.epgUrl == null && discoveredEpg != null) {
                         sourceDao.get(sourceId)?.let { sourceDao.update(it.copy(epgUrl = discoveredEpg)) }
                     }
@@ -158,9 +169,9 @@ class SourceRepository @Inject internal constructor(
                 SourceType.XTREAM -> {
                     val creds = credentials.xtream(source)
                     val categories = xtream.liveCategories(creds)
-                    val file = xtream.downloadLiveStreams(creds)
+                    val file = Perf.time("xtream download #$sourceId") { xtream.downloadLiveStreams(creds) }
                     try {
-                        replaceChannels(source) { emit -> produceXtream(source, categories, file, linker, emit) }
+                        replaceChannels(source) { emit -> produceXtream(source, categories, file, emit) }
                     } finally {
                         file.delete()
                     }
@@ -172,51 +183,71 @@ class SourceRepository @Inject internal constructor(
         }
     }
 
-    private suspend fun replaceChannels(source: SourceEntity, produce: ((ChannelEntity) -> Unit) -> Unit) {
-        var count = 0
-        db.withTransaction {
-            channelDao.deleteForSource(source.id)
-            coroutineScope {
-                val pipe = Channel<ChannelEntity>(capacity = BATCH_SIZE * 2)
-                launch(Dispatchers.IO) {
-                    try {
-                        produce { pipe.trySendBlocking(it).getOrThrow() }
-                        pipe.close()
-                    } catch (e: Throwable) {
-                        pipe.close(e)
-                        throw e
+    private suspend fun replaceChannels(source: SourceEntity, produce: ((StagedChannelEntity) -> Unit) -> Unit) {
+        channelDao.clearStaging(source.id)
+        try {
+            var staged = 0
+            var stageNanos = 0L
+            Perf.time("playlist parse+stage #${source.id}") {
+                coroutineScope {
+                    val pipe = Channel<StagedChannelEntity>(capacity = BATCH_SIZE * 2)
+                    launch(ImportDispatcher) {
+                        try {
+                            produce { pipe.trySendBlocking(it).getOrThrow() }
+                            pipe.close()
+                        } catch (e: Throwable) {
+                            pipe.close(e)
+                            throw e
+                        }
                     }
-                }
-                val batch = ArrayList<ChannelEntity>(BATCH_SIZE)
-                for (entity in pipe) {
-                    batch += entity
-                    if (batch.size == BATCH_SIZE) {
-                        channelDao.insertAll(batch.toList())
-                        count += batch.size
-                        batch.clear()
-                        _refreshState.value = RefreshState.Running(source.id, count)
+                    val batch = ArrayList<StagedChannelEntity>(BATCH_SIZE)
+                    for (entity in pipe) {
+                        batch += entity
+                        if (batch.size == BATCH_SIZE) {
+                            val t = System.nanoTime()
+                            channelDao.stage(batch.toList())
+                            stageNanos += System.nanoTime() - t
+                            staged += batch.size
+                            batch.clear()
+                            _refreshState.value = RefreshState.Running(source.id, staged)
+                        }
                     }
+                    if (batch.isNotEmpty()) channelDao.stage(batch)
+                    staged += batch.size
                 }
-                if (batch.isNotEmpty()) channelDao.insertAll(batch)
-                count += batch.size
+            }
+            Perf.log("playlist #${source.id}: staging inserts took ${stageNanos / 1_000_000} ms")
+            if (staged == 0) throw IllegalStateException("No channels found")
+            val count = Perf.time("playlist swap #${source.id}") {
+                db.withTransaction {
+                    val removed = Perf.time("  delete removed") { channelDao.deleteMissing(source.id) }
+                    val changed = Perf.time("  update changed") { channelDao.updateChanged(source.id) }
+                    Perf.time("  insert new") { channelDao.insertNew(source.id) }
+                    Perf.log("playlist #${source.id}: $removed removed, $changed changed")
+                    val linked = Perf.time("  link guide") { channelDao.linkGuide(source.id) }
+                    val count = channelDao.count(source.id)
+                    sourceDao.markRefreshed(source.id, count, System.currentTimeMillis())
+                    Perf.log("playlist #${source.id}: $count channels, $linked linked to the guide")
+                    count
+                }
             }
             if (count == 0) throw IllegalStateException("No channels found")
-            sourceDao.markRefreshed(source.id, count, System.currentTimeMillis())
+        } finally {
+            channelDao.clearStaging(source.id)
         }
     }
 
     private fun produceM3u(
         source: SourceEntity,
         staged: PlaylistLoader.Staged,
-        linker: EpgLinker,
-        emit: (ChannelEntity) -> Unit,
+        emit: (StagedChannelEntity) -> Unit,
         onEpg: (String) -> Unit,
     ) {
         val keys = KeyAllocator()
-        var index = 0
+        var index = 0L
         staged.parse(onHeader = { header -> header.epgUrls.firstOrNull()?.let(onEpg) }) { entry ->
             emit(
-                ChannelEntity(
+                StagedChannelEntity(
                     sourceId = source.id,
                     channelKey = keys.allocate("${entry.tvgId.orEmpty()}|${entry.name}"),
                     name = entry.name,
@@ -231,7 +262,8 @@ class SourceRepository @Inject internal constructor(
                     userAgent = entry.userAgent,
                     referrer = entry.referrer,
                     sortIndex = index++,
-                    epgId = linker.resolve(entry.tvgId, entry.name),
+                    nameKey = channelNameKey(entry.name),
+                    tvgKey = entry.tvgId?.let(::epgIdKey),
                 ),
             )
         }
@@ -241,16 +273,15 @@ class SourceRepository @Inject internal constructor(
         source: SourceEntity,
         categoryList: List<XtreamCategory>,
         file: File,
-        linker: EpgLinker,
-        emit: (ChannelEntity) -> Unit,
+        emit: (StagedChannelEntity) -> Unit,
     ) {
         val categories = categoryList.associate { it.id to it.name }
         // Keep the provider's category order rather than alphabetical.
         val categoryOrder = categoryList.withIndex().associate { it.value.id to it.index }
-        var index = 0
+        var index = 0L
         XtreamClient.parseLiveStreams(file) { stream ->
             emit(
-                ChannelEntity(
+                StagedChannelEntity(
                     sourceId = source.id,
                     channelKey = stream.streamId.toString(),
                     name = stream.name,
@@ -261,8 +292,9 @@ class SourceRepository @Inject internal constructor(
                     stream = stream.streamId.toString(),
                     catchupMode = if (stream.archiveDays > 0) "xc" else null,
                     catchupDays = stream.archiveDays,
-                    sortIndex = (categoryOrder[stream.categoryId] ?: categoryOrder.size) * CATEGORY_STRIDE + index++,
-                    epgId = linker.resolve(stream.epgChannelId, stream.name),
+                    sortIndex = (categoryOrder[stream.categoryId] ?: categoryOrder.size).toLong() * CATEGORY_STRIDE + index++,
+                    nameKey = channelNameKey(stream.name),
+                    tvgKey = stream.epgChannelId?.let(::epgIdKey),
                 ),
             )
         }
@@ -272,7 +304,7 @@ class SourceRepository @Inject internal constructor(
         location.substringAfter("://").substringBefore('/').substringBefore('?').ifBlank { "Playlist" }
 
     private companion object {
-        const val BATCH_SIZE = 500
-        const val CATEGORY_STRIDE = 1_000_000
+        const val BATCH_SIZE = 2_000
+        const val CATEGORY_STRIDE = 10_000_000L
     }
 }

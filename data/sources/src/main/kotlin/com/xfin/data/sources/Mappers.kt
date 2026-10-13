@@ -7,7 +7,6 @@ import com.xfin.core.model.Catchup
 import com.xfin.core.model.Channel
 import com.xfin.core.model.ChannelGroup
 import com.xfin.core.model.EpgStatus
-import com.xfin.core.model.ProgramSlot
 import com.xfin.core.model.Source
 import com.xfin.core.model.SourceType
 import com.xfin.core.model.XtreamOutput
@@ -39,12 +38,6 @@ internal fun ChannelRow.toModel() = Channel(
     catchup = channel.catchupMode?.let { Catchup(it, channel.catchupSource, channel.catchupDays) },
     isFavorite = isFavorite,
     epgId = channel.epgId,
-    nowPlaying = run {
-        val title = nowTitle
-        val start = nowStart
-        val end = nowEnd
-        if (title != null && start != null && end != null) ProgramSlot(title, start, end) else null
-    },
 )
 
 internal fun GroupRow.toModel() = ChannelGroup(name = name, channelCount = channelCount, hidden = hidden)
