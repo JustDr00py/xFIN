@@ -46,8 +46,4 @@ class SettingsViewModel @Inject constructor(
     fun delete(source: Source) {
         viewModelScope.launch { sources.delete(source.id) }
     }
-
-    fun setGroupVisible(group: ChannelGroup, visible: Boolean) {
-        viewModelScope.launch { channels.setGroupHidden(group.name, !visible) }
-    }
 }

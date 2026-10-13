@@ -5,6 +5,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.xfin.core.database.entity.ChannelMatchKeys
 import com.xfin.core.database.entity.ChannelRow
 import com.xfin.core.database.entity.FavoriteEntity
@@ -101,6 +102,22 @@ interface ChannelDao {
 
     @Query("DELETE FROM hidden_groups WHERE name = :name")
     suspend fun unhideGroup(name: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun hideGroups(groups: List<HiddenGroupEntity>)
+
+    @Query("DELETE FROM hidden_groups WHERE name IN (:names)")
+    suspend fun unhideGroups(names: List<String>)
+
+    @Query("DELETE FROM hidden_groups")
+    suspend fun unhideAllGroups()
+
+    /** Makes exactly [names] the hidden groups. */
+    @Transaction
+    suspend fun replaceHiddenGroups(names: List<String>) {
+        unhideAllGroups()
+        names.chunked(500).forEach { chunk -> hideGroups(chunk.map(::HiddenGroupEntity)) }
+    }
 
     // --- Favorites & history ---
 

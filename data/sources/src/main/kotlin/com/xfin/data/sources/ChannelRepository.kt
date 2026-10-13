@@ -87,6 +87,16 @@ class ChannelRepository @Inject internal constructor(
         }
     }
 
+    /** Shows or hides many groups at once. */
+    suspend fun setGroupsHidden(names: Collection<String>, hidden: Boolean) {
+        names.chunked(500).forEach { chunk ->
+            if (hidden) channelDao.hideGroups(chunk.map(::HiddenGroupEntity)) else channelDao.unhideGroups(chunk)
+        }
+    }
+
+    /** Makes exactly [names] the hidden groups (used for "only these" and undo). */
+    suspend fun replaceHiddenGroups(names: Collection<String>) = channelDao.replaceHiddenGroups(names.toList())
+
     suspend fun setGroupHidden(name: String, hidden: Boolean) {
         if (hidden) channelDao.hideGroup(HiddenGroupEntity(name)) else channelDao.unhideGroup(name)
     }

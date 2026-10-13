@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.DeleteOutline
@@ -61,14 +63,17 @@ import com.xfin.core.model.Source
 import com.xfin.core.model.SourceType
 
 @Composable
-internal fun SettingsScreen(onAddSource: () -> Unit, onEditSource: (Source) -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+internal fun SettingsScreen(
+    onAddSource: () -> Unit,
+    onEditSource: (Source) -> Unit,
+    onOpenGroups: () -> Unit,
+    viewModel: SettingsViewModel = hiltViewModel()) {
     val sources by viewModel.sourceList.collectAsStateWithLifecycle()
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val refresh by viewModel.refreshState.collectAsStateWithLifecycle()
     val epgState by viewModel.epgState.collectAsStateWithLifecycle()
     var pendingDelete by remember { mutableStateOf<Source?>(null) }
     var editingGuide by remember { mutableStateOf<Source?>(null) }
-    var groupsExpanded by rememberSaveable { mutableStateOf(false) }
     val isTv = LocalIsTv.current
 
     Box(Modifier.fillMaxSize().statusBarsPadding(), contentAlignment = Alignment.TopCenter) {
@@ -112,28 +117,15 @@ internal fun SettingsScreen(onAddSource: () -> Unit, onEditSource: (Source) -> U
                         headlineContent = { Text("Channel groups") },
                         supportingContent = {
                             val hidden = groups.count { it.hidden }
-                            Text(if (hidden == 0) "All ${groups.size} groups visible" else "$hidden of ${groups.size} hidden")
+                            Text(
+                                if (hidden == 0) "All %,d groups shown".format(groups.size)
+                                else "%,d of %,d shown".format(groups.size - hidden, groups.size),
+                            )
                         },
-                        trailingContent = {
-                            IconButton(onClick = { groupsExpanded = !groupsExpanded }) {
-                                Icon(if (groupsExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, "Toggle groups")
-                            }
-                        },
+                        trailingContent = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) },
                         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium),
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onOpenGroups),
                     )
-                }
-                if (groupsExpanded) {
-                    items(groups, key = { "g_${it.name}" }) { group ->
-                        ListItem(
-                            headlineContent = { Text(group.name, maxLines = 1) },
-                            supportingContent = { Text("${"%,d".format(group.channelCount)} channels") },
-                            trailingContent = {
-                                Switch(checked = !group.hidden, onCheckedChange = { viewModel.setGroupVisible(group, it) })
-                            },
-                            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                        )
-                    }
                 }
             }
 

@@ -35,6 +35,7 @@ import com.xfin.feature.onboarding.WelcomeRoute
 import com.xfin.feature.onboarding.onboardingScreens
 import com.xfin.feature.player.PlayerRoute
 import com.xfin.feature.player.playerScreen
+import com.xfin.feature.settings.ChannelGroupsRoute
 import com.xfin.feature.settings.SettingsRoute
 import com.xfin.feature.settings.settingsScreen
 
@@ -131,6 +132,8 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
         settingsScreen(
             onAddSource = { navController.navigate(WelcomeRoute) },
             onEditSource = { source -> navController.navigate(AddSourceRoute(source.type.name, source.id)) },
+            onOpenGroups = { navController.navigate(ChannelGroupsRoute) },
+            onBack = { navController.popBackStack() },
             shell = shell,
         )
         libraryScreens(
