@@ -118,13 +118,91 @@ class SourceRepository @Inject internal constructor(
             .forEach { source -> runCatching { refresh(source.id, withGuide = false) } }
     }
 
+    /** A source's settings as entered, for the edit form. */
+    suspend fun editable(sourceId: Long): EditableSource? = sourceDao.get(sourceId)?.let { s ->
+        EditableSource(
+            id = s.id,
+            type = SourceType.valueOf(s.type),
+            name = s.name,
+            url = s.url,
+            epgUrl = s.epgUrl,
+            userAgent = s.userAgent,
+            username = s.username,
+            password = if (s.type == SourceType.XTREAM.name) s.passwordEnc?.let(cipher::decrypt) else null,
+            output = runCatching { XtreamOutput.valueOf(s.xtreamOutput) }.getOrDefault(XtreamOutput.TS),
+        )
+    }
+
+    /**
+     * Saves an edited playlist. The channels are re-imported only when the playlist itself changed;
+     * if that import fails the previous settings are put back. Channels keep their ids (and so
+     * favourites) as long as the playlist's channel keys are the same.
+     */
+    suspend fun updateM3u(sourceId: Long, name: String, location: String, epgUrl: String?, userAgent: String?) = scope.async {
+        val old = sourceDao.get(sourceId) ?: throw IllegalStateException("This source was removed")
+        val new = old.copy(
+            name = name.ifBlank { defaultName(location) },
+            url = location.trim(),
+            epgUrl = epgUrl?.trim()?.ifBlank { null },
+            userAgent = userAgent?.trim()?.ifBlank { null },
+        )
+        sourceDao.update(new)
+        if (new.url != old.url || new.userAgent != old.userAgent) reimportOrRestore(old)
+        if (new.epgUrl != old.epgUrl || new.url != old.url) epg.launchRefresh(sourceId)
+    }.await()
+
+    /** Saves edited Xtream settings; a changed server or login is verified before anything is saved. */
+    suspend fun updateXtream(
+        sourceId: Long,
+        name: String,
+        server: String,
+        username: String,
+        password: String,
+        output: XtreamOutput,
+        epgUrl: String?,
+    ) {
+        val old = sourceDao.get(sourceId) ?: throw IllegalStateException("This source was removed")
+        val creds = XtreamCredentials.normalize(server, username, password)
+            ?: throw IllegalArgumentException("Enter a valid server URL, username and password")
+        val loginChanged = creds != credentials.xtream(old)
+        if (loginChanged) xtream.authenticate(creds)
+        scope.async {
+            sourceDao.update(
+                old.copy(
+                    name = name.ifBlank { defaultName(creds.baseUrl) },
+                    url = creds.baseUrl,
+                    username = creds.username,
+                    passwordEnc = cipher.encrypt(creds.password),
+                    xtreamOutput = output.name,
+                    epgUrl = epgUrl?.trim()?.ifBlank { null },
+                ),
+            )
+            val guideChanged = epgUrl?.trim()?.ifBlank { null } != old.epgUrl
+            if (guideChanged && !loginChanged) epg.launchRefresh(sourceId)
+            if (loginChanged) {
+                reimportOrRestore(old)
+                epg.launchRefresh(sourceId)
+                vod.launchRefresh(sourceId)
+            }
+        }.await()
+    }
+
+    private suspend fun reimportOrRestore(old: SourceEntity) {
+        try {
+            import(old.id)
+        } catch (e: Exception) {
+            sourceDao.get(old.id)?.let { current -> sourceDao.update(old.copy(channelCount = current.channelCount)) }
+            throw e
+        }
+    }
+
     suspend fun rename(sourceId: Long, name: String) {
         sourceDao.get(sourceId)?.let { sourceDao.update(it.copy(name = name)) }
     }
 
     /**
      * Removes a source. Its guide and channels are deleted in small slices first; a single
-     * cascading delete of 100k channels and 700k programmes would hold the database for seconds.
+     * cascading delete of 100k channels and 700k programs would hold the database for seconds.
      */
     suspend fun delete(sourceId: Long) = scope.async {
         Perf.time("delete source #$sourceId") {

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.xfin.core.model.RefreshState
 import com.xfin.core.model.XtreamOutput
+import com.xfin.data.jellyfin.JellyfinRepository
 import com.xfin.data.sources.SourceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,9 @@ import javax.inject.Inject
 
 data class AddSourceUiState(
     val kind: SourceKind,
+    /** Editing an existing source rather than adding one. */
+    val editing: Boolean = false,
+    val loading: Boolean = false,
     val name: String = "",
     val url: String = "",
     val fileName: String? = null,
@@ -31,10 +35,10 @@ data class AddSourceUiState(
     val done: Boolean = false,
 ) {
     val canSubmit: Boolean
-        get() = !importing && when (kind) {
+        get() = !importing && !loading && when (kind) {
             SourceKind.M3U -> url.isNotBlank()
             SourceKind.XTREAM -> url.isNotBlank() && username.isNotBlank() && password.isNotBlank()
-            SourceKind.JELLYFIN -> false
+            SourceKind.JELLYFIN -> editing && url.isNotBlank()
         }
 }
 
@@ -42,14 +46,38 @@ data class AddSourceUiState(
 class AddSourceViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val sources: SourceRepository,
+    private val jellyfin: JellyfinRepository,
 ) : ViewModel() {
 
+    private val route = savedStateHandle.toRoute<AddSourceRoute>()
     private val _state = MutableStateFlow(
-        AddSourceUiState(kind = SourceKind.valueOf(savedStateHandle.toRoute<AddSourceRoute>().kind)),
+        AddSourceUiState(kind = SourceKind.valueOf(route.kind), editing = route.isEdit, loading = route.isEdit),
     )
     val state: StateFlow<AddSourceUiState> = _state.asStateFlow()
 
     init {
+        if (route.isEdit) {
+            viewModelScope.launch {
+                val source = sources.editable(route.sourceId)
+                if (source == null) {
+                    _state.update { it.copy(loading = false, error = "This source was removed") }
+                    return@launch
+                }
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        name = source.name,
+                        url = source.url,
+                        fileName = if (source.url.startsWith("content://")) "Playlist file" else null,
+                        epgUrl = source.epgUrl.orEmpty(),
+                        userAgent = source.userAgent.orEmpty(),
+                        username = source.username.orEmpty(),
+                        password = source.password.orEmpty(),
+                        output = source.output,
+                    )
+                }
+            }
+        }
         viewModelScope.launch {
             sources.refreshState.collect { refresh ->
                 if (refresh is RefreshState.Running) _state.update { it.copy(imported = refresh.itemsImported) }
@@ -67,10 +95,13 @@ class AddSourceViewModel @Inject constructor(
         _state.update { it.copy(importing = true, imported = 0, error = null) }
         viewModelScope.launch {
             try {
-                when (s.kind) {
-                    SourceKind.M3U -> sources.addM3u(s.name, s.url, s.epgUrl, s.userAgent)
-                    SourceKind.XTREAM -> sources.addXtream(s.name, s.url, s.username, s.password, s.output)
-                    SourceKind.JELLYFIN -> Unit
+                val id = route.sourceId
+                when {
+                    !s.editing && s.kind == SourceKind.M3U -> sources.addM3u(s.name, s.url, s.epgUrl, s.userAgent)
+                    !s.editing && s.kind == SourceKind.XTREAM -> sources.addXtream(s.name, s.url, s.username, s.password, s.output)
+                    s.kind == SourceKind.M3U -> sources.updateM3u(id, s.name, s.url, s.epgUrl, s.userAgent)
+                    s.kind == SourceKind.XTREAM -> sources.updateXtream(id, s.name, s.url, s.username, s.password, s.output, s.epgUrl)
+                    s.kind == SourceKind.JELLYFIN -> jellyfin.updateServer(id, s.name, s.url)
                 }
                 _state.update { it.copy(importing = false, done = true) }
             } catch (e: Exception) {

@@ -25,7 +25,7 @@ data class SourceEntity(
     val lastRefreshedAt: Long? = null,
     val lastError: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    /** Programmes are imported under a new generation, then swapped in by bumping this. */
+    /** Programs are imported under a new generation, then swapped in by bumping this. */
     @ColumnInfo(defaultValue = "0") val epgGeneration: Int = 0,
     val epgUpdatedAt: Long? = null,
     @ColumnInfo(defaultValue = "0") val epgProgramCount: Int = 0,
@@ -271,7 +271,7 @@ data class ChannelRow(
     @ColumnInfo(name = "isFavorite") val isFavorite: Boolean,
 )
 
-/** Match keys of a source's channels, used to pick which guide programmes to keep. */
+/** Match keys of a source's channels, used to pick which guide programs to keep. */
 data class ChannelMatchKeys(
     val tvgKey: String?,
     val nameKey: String,

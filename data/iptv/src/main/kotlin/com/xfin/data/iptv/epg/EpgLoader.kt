@@ -41,14 +41,14 @@ class EpgLoader @Inject constructor(
         file: File,
         onChannel: (XmltvChannel) -> Unit,
         accept: (channelId: String, start: Long, stop: Long) -> Boolean,
-        onProgramme: (XmltvProgramme) -> Unit,
+        onProgram: (XmltvProgram) -> Unit,
     ) {
         openMaybeGzip(file).use { input ->
             val parser = Xml.newPullParser().apply {
                 setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
                 setInput(input, null)
             }
-            XmltvParser.parse(parser, onChannel, accept, onProgramme)
+            XmltvParser.parse(parser, onChannel, accept, onProgram)
         }
     }
 

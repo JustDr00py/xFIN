@@ -6,7 +6,7 @@ import java.time.ZoneOffset
 
 data class XmltvChannel(val id: String, val displayNames: List<String>, val iconUrl: String?)
 
-data class XmltvProgramme(
+data class XmltvProgram(
     val channelId: String,
     val start: Long,
     val stop: Long,
@@ -20,7 +20,7 @@ data class XmltvProgramme(
 
 /**
  * Streaming XMLTV reader on top of XmlPullParser: constant memory regardless of guide size.
- * [accept] is asked once per `<programme>` before its body is read, so programmes for channels
+ * [accept] is asked once per `<program>` before its body is read, so programs for channels
  * the user does not have are skipped cheaply.
  */
 object XmltvParser {
@@ -29,7 +29,7 @@ object XmltvParser {
         parser: XmlPullParser,
         onChannel: (XmltvChannel) -> Unit,
         accept: (channelId: String, start: Long, stop: Long) -> Boolean,
-        onProgramme: (XmltvProgramme) -> Unit,
+        onProgram: (XmltvProgram) -> Unit,
     ) {
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
@@ -43,7 +43,7 @@ object XmltvParser {
                         if (channel.isNullOrEmpty() || start == null || !accept(channel, start, stop ?: start)) {
                             skip(parser)
                         } else {
-                            readProgramme(parser, channel, start, stop)?.let(onProgramme)
+                            readProgram(parser, channel, start, stop)?.let(onProgram)
                         }
                     }
                 }
@@ -69,7 +69,7 @@ object XmltvParser {
         return if (id.isNullOrEmpty()) null else XmltvChannel(id, names, icon)
     }
 
-    private fun readProgramme(parser: XmlPullParser, channel: String, start: Long, stop: Long?): XmltvProgramme? {
+    private fun readProgram(parser: XmlPullParser, channel: String, start: Long, stop: Long?): XmltvProgram? {
         var title: String? = null
         var subtitle: String? = null
         var desc: String? = null
@@ -97,9 +97,9 @@ object XmltvParser {
             }
         }
         val t = title?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        // Some feeds omit `stop`; assume 30 minutes rather than dropping the programme.
+        // Some feeds omit `stop`; assume 30 minutes rather than dropping the program.
         val end = stop?.takeIf { it > start } ?: (start + 30 * 60_000L)
-        return XmltvProgramme(
+        return XmltvProgram(
             channelId = channel,
             start = start,
             stop = end,

@@ -113,7 +113,7 @@ internal fun GuideScreen(
             hasGuide == false && refresh is EpgRefreshState.Running -> EmptyState(
                 icon = Icons.Rounded.DateRange,
                 title = "Loading the guide…",
-                message = "${"%,d".format((refresh as EpgRefreshState.Running).programs)} programmes so far. This only takes long the first time.",
+                message = "${"%,d".format((refresh as EpgRefreshState.Running).programs)} programs so far. This only takes long the first time.",
                 modifier = Modifier.fillMaxSize(),
             )
             hasGuide == false -> EmptyState(

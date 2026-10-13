@@ -76,7 +76,7 @@ class GuideViewModel @Inject constructor(
 
     private val cache = LruCache<Long, List<Program>>(CACHE_ROWS)
 
-    /** Bumps when a new guide is swapped in; rows reload their programmes when it changes. */
+    /** Bumps when a new guide is swapped in; rows reload their programs when it changes. */
     val guideVersion: StateFlow<Int> = epg.observeGuideVersion()
         .onEach { cache.evictAll() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0)

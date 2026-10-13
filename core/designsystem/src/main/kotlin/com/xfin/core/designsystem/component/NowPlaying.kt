@@ -21,7 +21,7 @@ import com.xfin.core.model.ProgramSlot
 import java.text.DateFormat
 import java.util.Date
 
-/** Thin rounded progress track for "how far into the programme are we". */
+/** Thin rounded progress track for "how far into the program are we". */
 @Composable
 fun ProgressTrack(
     progress: Float,
@@ -45,7 +45,7 @@ fun ProgressTrack(
     }
 }
 
-/** Programme title with a progress track underneath, as shown in channel lists. */
+/** Program title with a progress track underneath, as shown in channel lists. */
 @Composable
 fun NowPlayingLine(
     slot: ProgramSlot,

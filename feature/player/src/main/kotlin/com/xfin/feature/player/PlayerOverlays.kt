@@ -81,8 +81,8 @@ import com.xfin.core.player.LivePlayerState
 import com.xfin.core.player.TrackOption
 
 /**
- * UHF-style live overlay: round controls on top, channel and programme info with stream facts at
- * the bottom left, a control pill at the bottom right and the programme timeline underneath.
+ * UHF-style live overlay: round controls on top, channel and program info with stream facts at
+ * the bottom left, a control pill at the bottom right and the program timeline underneath.
  */
 @Composable
 internal fun ChannelOverlay(
@@ -180,7 +180,7 @@ private fun ChannelInfo(channel: Channel, ui: PlayerUiState, playback: LivePlaye
         ChannelLogo(channel.name, channel.logoUrl, Modifier.size(width = if (isTv) 128.dp else 104.dp, height = if (isTv) 80.dp else 64.dp))
         Spacer(Modifier.height(12.dp))
         Text(
-            // With guide data the channel goes small and the programme big; without, show the group.
+            // With guide data the channel goes small and the program big; without, show the group.
             listOfNotNull(channel.number?.toString(), if (program != null) channel.name else channel.group).joinToString("  "),
             style = MaterialTheme.typography.titleMedium,
             color = Color.White.copy(alpha = 0.9f),
@@ -233,7 +233,7 @@ private fun ChannelInfo(channel: Channel, ui: PlayerUiState, playback: LivePlaye
     }
 }
 
-/** Programme progress with start time, LIVE, the current time and what's next. */
+/** Program progress with start time, LIVE, the current time and what's next. */
 @Composable
 private fun Timeline(nowNext: NowNext?, now: Long) {
     val program = nowNext?.now

@@ -79,7 +79,15 @@ internal fun AddSourceScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (state.kind == SourceKind.M3U) "Add M3U playlist" else "Add Xtream Codes") },
+                title = {
+                    Text(
+                        when {
+                            state.editing -> "Edit source"
+                            state.kind == SourceKind.M3U -> "Add M3U playlist"
+                            else -> "Add Xtream Codes"
+                        },
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
                 },
@@ -105,7 +113,7 @@ internal fun AddSourceScreen(
                 when (state.kind) {
                     SourceKind.M3U -> M3uForm(state, viewModel)
                     SourceKind.XTREAM -> XtreamForm(state, viewModel)
-                    SourceKind.JELLYFIN -> Unit
+                    SourceKind.JELLYFIN -> JellyfinForm(state, viewModel)
                 }
 
                 AnimatedVisibility(state.error != null) {
@@ -135,7 +143,7 @@ internal fun AddSourceScreen(
                             if (state.imported > 0) "Importing… ${"%,d".format(state.imported)} channels" else "Connecting…",
                         )
                     } else {
-                        Text("Add and import")
+                        Text(if (state.editing) "Save" else "Add and import")
                     }
                 }
                 Spacer(Modifier.height(24.dp))
@@ -157,7 +165,7 @@ private fun M3uForm(state: AddSourceUiState, viewModel: AddSourceViewModel) {
             viewModel.pickedFile(uri.toString(), name)
         }
     }
-    var advanced by rememberSaveable { mutableStateOf(false) }
+    var advanced by rememberSaveable { mutableStateOf(state.editing) }
 
     Field("Name (optional)", state.name, { viewModel.update { copy(name = it) } })
     if (state.fileName != null) {
@@ -243,6 +251,15 @@ private fun XtreamForm(state: AddSourceUiState, viewModel: AddSourceViewModel) {
         },
         modifier = Modifier.fillMaxWidth(),
     )
+    if (state.editing) {
+        Field(
+            label = "Guide (XMLTV) URL (optional)",
+            value = state.epgUrl,
+            onValueChange = { viewModel.update { copy(epgUrl = it) } },
+            placeholder = "Empty: use the provider's guide",
+            keyboardType = KeyboardType.Uri,
+        )
+    }
     Text("Stream format", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
         XtreamOutput.entries.forEachIndexed { index, output ->
@@ -255,6 +272,23 @@ private fun XtreamForm(state: AddSourceUiState, viewModel: AddSourceViewModel) {
             }
         }
     }
+}
+
+@Composable
+private fun JellyfinForm(state: AddSourceUiState, viewModel: AddSourceViewModel) {
+    Field("Name", state.name, { viewModel.update { copy(name = it) } })
+    Field(
+        label = "Server address",
+        value = state.url,
+        onValueChange = { viewModel.update { copy(url = it) } },
+        placeholder = "https://jellyfin.example.com",
+        keyboardType = KeyboardType.Uri,
+    )
+    Text(
+        "Use this when your server moves to a new address. To sign in as someone else, add the server again.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

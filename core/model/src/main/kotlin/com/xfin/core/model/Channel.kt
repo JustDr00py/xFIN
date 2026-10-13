@@ -15,7 +15,7 @@ data class Channel(
     val isFavorite: Boolean = false,
     /** Resolved guide channel id (by tvg-id or name), null when the channel has no guide data. */
     val epgId: String? = null,
-    /** The programme airing when this channel was loaded. */
+    /** The program airing when this channel was loaded. */
     val nowPlaying: ProgramSlot? = null,
 )
 

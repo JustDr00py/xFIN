@@ -81,7 +81,7 @@ class EpgRepository @Inject internal constructor(
     private var cacheGeneration = 0L
 
     /**
-     * What's on now for a list row. Cached until the programme ends (or for a minute when there
+     * What's on now for a list row. Cached until the program ends (or for a minute when there
      * is none) and dropped whenever a new guide is swapped in.
      */
     suspend fun nowPlaying(channel: Channel, now: Long = System.currentTimeMillis()): ProgramSlot? {
@@ -125,8 +125,8 @@ class EpgRepository @Inject internal constructor(
             } finally {
                 file.delete()
             }
-            if (result.count == 0) throw IllegalStateException("The guide has no programmes for your channels")
-            Perf.log("guide #$sourceId: ${result.count} programmes, ${result.epgChannels.size} guide channel keys")
+            if (result.count == 0) throw IllegalStateException("The guide has no programs for your channels")
+            Perf.log("guide #$sourceId: ${result.count} programs, ${result.epgChannels.size} guide channel keys")
             Perf.time("guide swap+link #$sourceId") { swap(source, result) }
             // Old generations are already invisible; remove them in small chunks.
             Perf.time("guide cleanup #$sourceId") {
@@ -181,7 +181,7 @@ class EpgRepository @Inject internal constructor(
                             } else if (key in accepted) {
                                 true
                             } else if (key in wantedIds) {
-                                // Programme for a channel the feed never declared.
+                                // Program for a channel the feed never declared.
                                 accepted += key
                                 epgChannels += EpgChannelEntity(source.id, key, "")
                                 true
@@ -189,7 +189,7 @@ class EpgRepository @Inject internal constructor(
                                 false
                             }
                         },
-                        onProgramme = { p ->
+                        onProgram = { p ->
                             val entity = ProgramEntity(
                                 sourceId = source.id,
                                 generation = generation,

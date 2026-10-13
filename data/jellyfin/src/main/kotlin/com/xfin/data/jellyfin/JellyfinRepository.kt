@@ -63,6 +63,7 @@ class JellyfinRepository @Inject constructor(
     private val sdk: JellyfinSdk,
     private val sourceDao: SourceDao,
     private val cipher: SecretCipher,
+    private val connector: JellyfinConnector,
 ) {
     private class Connection(val api: ApiClient, val userId: UUID, val token: String, val baseUrl: String)
 
@@ -95,6 +96,24 @@ class JellyfinRepository @Inject constructor(
         } else {
             sourceDao.insert(entity)
         }
+    }
+
+    /**
+     * Renames a server or points it at a new address (e.g. a new domain). The address must reach the
+     * same server, so the saved sign-in stays valid.
+     */
+    suspend fun updateServer(sourceId: Long, name: String, address: String) {
+        val source = sourceDao.get(sourceId) ?: throw JellyfinException("This server was removed")
+        var url = source.url
+        if (address.trim().trimEnd('/') != source.url.trimEnd('/')) {
+            val server = connector.probe(address)
+            if (source.serverId != null && server.id != source.serverId) {
+                throw JellyfinException("That address is a different Jellyfin server (${server.name}). Add it as a new server instead.")
+            }
+            url = server.url
+        }
+        sourceDao.update(source.copy(name = name.ifBlank { source.name }, url = url))
+        connections.remove(sourceId)
     }
 
     suspend fun views(sourceId: Long): List<LibraryView> = call(sourceId) { c ->

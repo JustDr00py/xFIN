@@ -37,12 +37,12 @@ class XmltvParserTest {
         </tv>
     """.trimIndent()
 
-    private fun parse(accept: (String) -> Boolean = { true }): Pair<List<XmltvChannel>, List<XmltvProgramme>> {
+    private fun parse(accept: (String) -> Boolean = { true }): Pair<List<XmltvChannel>, List<XmltvProgram>> {
         val parser = KXmlParser().apply { setInput(xml.reader()) }
         val channels = mutableListOf<XmltvChannel>()
-        val programmes = mutableListOf<XmltvProgramme>()
-        XmltvParser.parse(parser, channels::add, { id, _, _ -> accept(id) }, programmes::add)
-        return channels to programmes
+        val programs = mutableListOf<XmltvProgram>()
+        XmltvParser.parse(parser, channels::add, { id, _, _ -> accept(id) }, programs::add)
+        return channels to programs
     }
 
     @Test
@@ -54,9 +54,9 @@ class XmltvParserTest {
     }
 
     @Test
-    fun `reads programme fields and skips unknown children`() {
-        val (_, programmes) = parse()
-        val news = programmes.first { it.title == "Evening News" }
+    fun `reads program fields and skips unknown children`() {
+        val (_, programs) = parse()
+        val news = programs.first { it.title == "Evening News" }
         assertEquals(Instant.parse("2026-10-12T18:00:00Z").toEpochMilli(), news.start)
         assertEquals(Instant.parse("2026-10-12T19:00:00Z").toEpochMilli(), news.stop)
         assertEquals("Top stories", news.subtitle)
@@ -68,16 +68,16 @@ class XmltvParserTest {
 
     @Test
     fun `offset is applied and missing stop defaults to 30 minutes`() {
-        val (_, programmes) = parse()
-        val who = programmes.first { it.title == "Doctor Who" }
+        val (_, programs) = parse()
+        val who = programs.first { it.title == "Doctor Who" }
         assertEquals(Instant.parse("2026-10-12T17:00:00Z").toEpochMilli(), who.start)
         assertEquals(who.start + 30 * 60_000, who.stop)
     }
 
     @Test
-    fun `rejected and malformed programmes are skipped without breaking the stream`() {
-        val (_, programmes) = parse { it != "skip.me" }
-        assertEquals(listOf("Evening News", "Doctor Who"), programmes.map { it.title })
+    fun `rejected and malformed programs are skipped without breaking the stream`() {
+        val (_, programs) = parse { it != "skip.me" }
+        assertEquals(listOf("Evening News", "Doctor Who"), programs.map { it.title })
     }
 
     @Test

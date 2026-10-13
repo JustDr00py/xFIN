@@ -130,6 +130,7 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
         )
         settingsScreen(
             onAddSource = { navController.navigate(WelcomeRoute) },
+            onEditSource = { source -> navController.navigate(AddSourceRoute(source.type.name, source.id)) },
             shell = shell,
         )
         libraryScreens(

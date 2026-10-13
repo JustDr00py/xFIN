@@ -122,7 +122,7 @@ fun rememberTimelineState(window: GuideWindow, minuteWidth: Dp, now: Long): Time
     }
 }
 
-/** A programme or an empty stretch of the timeline. */
+/** A program or an empty stretch of the timeline. */
 private data class Cell(val start: Long, val end: Long, val program: Program?)
 
 private fun buildCells(programs: List<Program>, window: GuideWindow): List<Cell> {
@@ -336,7 +336,7 @@ private fun ProgramCell(
             .clickable(onClick = onClick),
     ) {
         if (airing) {
-            // Elapsed part of the airing programme.
+            // Elapsed part of the airing program.
             Box(
                 Modifier
                     .fillMaxHeight()
@@ -344,7 +344,7 @@ private fun ProgramCell(
                     .background(colors.primary.copy(alpha = 0.13f)),
             )
         }
-        // Keep the title readable when the programme started left of the visible area.
+        // Keep the title readable when the program started left of the visible area.
         Column(
             Modifier
                 .offset {

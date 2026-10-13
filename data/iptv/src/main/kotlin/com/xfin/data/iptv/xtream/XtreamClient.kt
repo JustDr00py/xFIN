@@ -19,8 +19,12 @@ import javax.inject.Inject
 @OptIn(ExperimentalSerializationApi::class)
 class XtreamClient @Inject constructor(private val http: OkHttpClient) {
 
-    suspend fun authenticate(creds: XtreamCredentials): XtreamAccount =
+    suspend fun authenticate(creds: XtreamCredentials): XtreamAccount = try {
         get(creds, action = null) { XtreamParsing.account(XtreamParsing.json.decodeFromStream<JsonElement>(it)) }
+    } catch (e: HttpStatusException) {
+        // Providers reject bad logins with all sorts of codes (401, 403, 513, 884…).
+        throw XtreamAuthException("The server refused this login (HTTP ${e.code}). Check the username and password.")
+    }
 
     suspend fun liveCategories(creds: XtreamCredentials): List<XtreamCategory> =
         get(creds, "get_live_categories") {
@@ -86,7 +90,7 @@ class XtreamClient @Inject constructor(private val http: OkHttpClient) {
     private fun Response.requireSuccess() {
         when {
             code == 401 || code == 403 -> throw XtreamAuthException("Invalid username or password")
-            !isSuccessful -> throw IOException("Server returned HTTP $code")
+            !isSuccessful -> throw HttpStatusException(code)
         }
     }
 
@@ -137,3 +141,5 @@ class XtreamClient @Inject constructor(private val http: OkHttpClient) {
             HttpUrl.Builder().scheme("http").host("x").addPathSegment(this).build().encodedPathSegments.first()
     }
 }
+
+internal class HttpStatusException(val code: Int) : IOException("Server returned HTTP $code")

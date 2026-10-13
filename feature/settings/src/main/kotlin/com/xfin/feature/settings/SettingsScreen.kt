@@ -20,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -58,7 +59,7 @@ import com.xfin.core.model.Source
 import com.xfin.core.model.SourceType
 
 @Composable
-internal fun SettingsScreen(onAddSource: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+internal fun SettingsScreen(onAddSource: () -> Unit, onEditSource: (Source) -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
     val sources by viewModel.sourceList.collectAsStateWithLifecycle()
     val groups by viewModel.groups.collectAsStateWithLifecycle()
     val refresh by viewModel.refreshState.collectAsStateWithLifecycle()
@@ -89,6 +90,7 @@ internal fun SettingsScreen(onAddSource: () -> Unit, viewModel: SettingsViewMode
                     guideLoading = (epgState as? EpgRefreshState.Running)?.takeIf { it.sourceId == source.id },
                     onRefresh = { viewModel.refresh(source) },
                     onDelete = { pendingDelete = source },
+                    onEdit = { onEditSource(source) },
                     onEditGuide = { editingGuide = source },
                     onRefreshGuide = { viewModel.refreshGuide(source) },
                 )
@@ -190,6 +192,7 @@ private fun SourceItem(
     guideLoading: EpgRefreshState.Running?,
     onRefresh: () -> Unit,
     onDelete: () -> Unit,
+    onEdit: () -> Unit,
     onEditGuide: () -> Unit,
     onRefreshGuide: () -> Unit,
 ) {
@@ -236,6 +239,7 @@ private fun SourceItem(
                 } else if (source.type != SourceType.JELLYFIN) {
                     IconButton(onClick = onRefresh) { Icon(Icons.Rounded.Refresh, "Refresh ${source.name}") }
                 }
+                IconButton(onClick = onEdit) { Icon(Icons.Rounded.Edit, "Edit ${source.name}") }
                 IconButton(onClick = onDelete) { Icon(Icons.Rounded.DeleteOutline, "Remove ${source.name}") }
             }
         },
@@ -253,9 +257,9 @@ private fun GuideStatus(
 ) {
     val hasGuideUrl = source.epgUrl != null || source.type == SourceType.XTREAM
     val status = when {
-        loading != null -> "Guide: loading… ${"%,d".format(loading.programs)} programmes"
+        loading != null -> "Guide: loading… ${"%,d".format(loading.programs)} programs"
         source.epg.error != null -> "Guide: ${source.epg.error}"
-        source.epg.updatedAt != null -> "Guide: ${"%,d".format(source.epg.programCount)} programmes · updated " +
+        source.epg.updatedAt != null -> "Guide: ${"%,d".format(source.epg.programCount)} programs · updated " +
             DateUtils.getRelativeTimeSpanString(source.epg.updatedAt!!, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS)
         hasGuideUrl -> "Guide: not loaded yet"
         else -> "No guide URL"
@@ -266,9 +270,15 @@ private fun GuideStatus(
         maxLines = 2,
     )
     Row {
-        if (source.type == SourceType.M3U) {
+        if (source.type == SourceType.M3U || source.type == SourceType.XTREAM) {
             TextButton(onClick = onEdit, contentPadding = PaddingValues(horizontal = 0.dp)) {
-                Text(if (source.epgUrl == null) "Add guide URL" else "Edit guide URL")
+                Text(
+                    when {
+                        source.epgUrl != null -> "Edit guide URL"
+                        source.type == SourceType.XTREAM -> "Use another guide"
+                        else -> "Add guide URL"
+                    },
+                )
             }
             Spacer(Modifier.width(16.dp))
         }
@@ -287,7 +297,8 @@ private fun GuideUrlDialog(source: Source, onSave: (String) -> Unit, onDismiss: 
         text = {
             Column {
                 Text(
-                    "xFIN matches guide channels to ${source.name} by tvg-id, then by name. Plain .xml and .xml.gz both work.",
+                    "xFIN matches guide channels to ${source.name} by tvg-id, then by name. Plain .xml and .xml.gz both work." +
+                        if (source.type == SourceType.XTREAM) " Leave it empty to use the provider's own guide." else "",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

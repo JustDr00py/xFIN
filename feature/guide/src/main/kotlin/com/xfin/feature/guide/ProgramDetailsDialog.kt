@@ -92,7 +92,7 @@ internal fun ProgramDetailsDialog(
                         )
                     }
                 } else {
-                    Text("No programme information", style = MaterialTheme.typography.titleMedium)
+                    Text("No program information", style = MaterialTheme.typography.titleMedium)
                 }
                 Spacer(Modifier.height(24.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
