@@ -13,10 +13,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.LiveTv
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.Tv
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.LiveTv
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
@@ -39,31 +43,36 @@ import com.xfin.core.designsystem.component.LocalIsTv
 import com.xfin.feature.guide.GuideRoute
 import com.xfin.feature.livetv.LiveTvRoute
 import com.xfin.feature.library.LibraryRoute
+import com.xfin.feature.library.MoviesRoute
+import com.xfin.feature.library.ShowsRoute
 import com.xfin.feature.settings.SettingsRoute
 
 enum class TopLevel(val route: Any, val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
     LIVE_TV(LiveTvRoute, "Live TV", Icons.Outlined.LiveTv, Icons.Rounded.LiveTv),
     GUIDE(GuideRoute, "Guide", Icons.Outlined.DateRange, Icons.Rounded.DateRange),
     LIBRARY(LibraryRoute, "Library", Icons.Outlined.VideoLibrary, Icons.Rounded.VideoLibrary),
+    MOVIES(MoviesRoute, "Movies", Icons.Outlined.Movie, Icons.Rounded.Movie),
+    SHOWS(ShowsRoute, "Shows", Icons.Outlined.Tv, Icons.Rounded.Tv),
     SETTINGS(SettingsRoute, "Settings", Icons.Outlined.Settings, Icons.Rounded.Settings),
 }
 
 /** Top-level chrome: bottom bar on phones, rail on tablets, slim focus rail on TV. */
 @Composable
-fun AppShell(current: TopLevel, onNavigate: (TopLevel) -> Unit, content: @Composable () -> Unit) {
+fun AppShell(current: TopLevel, tabs: List<TopLevel>, onNavigate: (TopLevel) -> Unit, content: @Composable () -> Unit) {
     when {
-        LocalIsTv.current -> TvShell(current, onNavigate, content)
-        windowWidthDp() >= 600 -> RailShell(current, onNavigate, content)
-        else -> PhoneShell(current, onNavigate, content)
+        LocalIsTv.current -> TvShell(current, tabs, onNavigate, content)
+        windowWidthDp() >= 600 -> RailShell(current, tabs, onNavigate, content)
+        // A phone bar fits five tabs; Settings then lives behind the gear on the Library page.
+        else -> PhoneShell(current, if (tabs.size > 5) tabs - TopLevel.SETTINGS else tabs, onNavigate, content)
     }
 }
 
 @Composable
-private fun PhoneShell(current: TopLevel, onNavigate: (TopLevel) -> Unit, content: @Composable () -> Unit) {
+private fun PhoneShell(current: TopLevel, tabs: List<TopLevel>, onNavigate: (TopLevel) -> Unit, content: @Composable () -> Unit) {
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest) {
-                TopLevel.entries.forEach { item ->
+                tabs.forEach { item ->
                     NavigationBarItem(
                         selected = item == current,
                         onClick = { onNavigate(item) },
@@ -83,11 +92,11 @@ private fun PhoneShell(current: TopLevel, onNavigate: (TopLevel) -> Unit, conten
 }
 
 @Composable
-private fun RailShell(current: TopLevel, onNavigate: (TopLevel) -> Unit, content: @Composable () -> Unit) {
+private fun RailShell(current: TopLevel, tabs: List<TopLevel>, onNavigate: (TopLevel) -> Unit, content: @Composable () -> Unit) {
     Row(Modifier.fillMaxSize()) {
         NavigationRail(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest) {
             Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                TopLevel.entries.forEach { item ->
+                tabs.forEach { item ->
                     NavigationRailItem(
                         selected = item == current,
                         onClick = { onNavigate(item) },
@@ -102,7 +111,7 @@ private fun RailShell(current: TopLevel, onNavigate: (TopLevel) -> Unit, content
 }
 
 @Composable
-private fun TvShell(current: TopLevel, onNavigate: (TopLevel) -> Unit, content: @Composable () -> Unit) {
+private fun TvShell(current: TopLevel, tabs: List<TopLevel>, onNavigate: (TopLevel) -> Unit, content: @Composable () -> Unit) {
     Row(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -113,7 +122,7 @@ private fun TvShell(current: TopLevel, onNavigate: (TopLevel) -> Unit, content: 
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
         ) {
-            TopLevel.entries.forEach { item ->
+            tabs.forEach { item ->
                 val selected = item == current
                 FocusSurface(
                     onClick = { onNavigate(item) },

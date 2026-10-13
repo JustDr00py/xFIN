@@ -18,6 +18,9 @@ import com.xfin.feature.guide.guideScreen
 import com.xfin.feature.livetv.LiveTvRoute
 import com.xfin.feature.library.ItemRoute
 import com.xfin.feature.library.LibraryRoute
+import com.xfin.feature.library.MoviesRoute
+import com.xfin.feature.library.SearchRoute
+import com.xfin.feature.library.ShowsRoute
 import com.xfin.feature.library.libraryScreens
 import com.xfin.feature.onboarding.AddJellyfinRoute
 import com.xfin.feature.onboarding.SourceKind
@@ -47,14 +50,23 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
         }
     }
 
+    // Only show tabs for the kinds of sources the user has.
+    val tabs = buildList {
+        if (sources.iptv || !sources.library) addAll(listOf(TopLevel.LIVE_TV, TopLevel.GUIDE))
+        if (sources.library) addAll(listOf(TopLevel.LIBRARY, TopLevel.MOVIES, TopLevel.SHOWS))
+        add(TopLevel.SETTINGS)
+    }
     val shell: @Composable (@Composable () -> Unit) -> Unit = { content ->
         AppShell(
             current = when {
                 destination?.hasRoute<SettingsRoute>() == true -> TopLevel.SETTINGS
                 destination?.hasRoute<GuideRoute>() == true -> TopLevel.GUIDE
                 destination?.hasRoute<LibraryRoute>() == true -> TopLevel.LIBRARY
+                destination?.hasRoute<MoviesRoute>() == true -> TopLevel.MOVIES
+                destination?.hasRoute<ShowsRoute>() == true -> TopLevel.SHOWS
                 else -> TopLevel.LIVE_TV
             },
+            tabs = tabs,
             onNavigate = { target ->
                 navController.navigate(target.route) {
                     popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -115,8 +127,17 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
         libraryScreens(
             onOpenItem = { sourceId, itemId -> navController.navigate(ItemRoute(sourceId, itemId)) },
             onOpenLibrary = { navController.navigate(it) },
-            onPlay = { sourceId, itemId, startMs -> navController.navigate(VodPlayerRoute(sourceId, itemId, startMs)) },
+            onPlay = { sourceId, itemId, startMs, mediaSourceId ->
+                navController.navigate(VodPlayerRoute(sourceId, itemId, startMs, mediaSourceId))
+            },
             onConnect = { navController.navigate(AddJellyfinRoute) },
+            onSearch = { navController.navigate(SearchRoute) },
+            onOpenSettings = {
+                navController.navigate(SettingsRoute) {
+                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                    launchSingleTop = true
+                }
+            },
             onBack = { navController.popBackStack() },
             shell = shell,
         )

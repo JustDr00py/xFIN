@@ -56,7 +56,7 @@ class VodPlayerViewModel @Inject constructor(
             try {
                 val item = jellyfin.item(route.sourceId, route.itemId)
                 _ui.update { it.copy(item = item) }
-                val s = jellyfin.playback(route.sourceId, route.itemId, route.startMs)
+                val s = jellyfin.playback(route.sourceId, route.itemId, route.startMs, mediaSourceId = route.mediaSourceId)
                 stream = s
                 android.util.Log.i("xFIN-vod", "${s.playMethod} ${item.kind} ${s.url} subs=${s.subtitles.map { it.url }}")
                 player.play(s)
@@ -90,7 +90,7 @@ class VodPlayerViewModel @Inject constructor(
                 val position = player.state.value.positionMs.takeIf { it > 0 } ?: s.startMs
                 android.util.Log.i("xFIN-vod", "decode failed with ${s.playMethod}; retrying as a transcode")
                 try {
-                    val transcode = jellyfin.playback(route.sourceId, route.itemId, position, allowDirect = false)
+                    val transcode = jellyfin.playback(route.sourceId, route.itemId, position, allowDirect = false, mediaSourceId = s.mediaSourceId)
                     stream = transcode
                     player.play(transcode)
                     jellyfin.reportStart(transcode, position)

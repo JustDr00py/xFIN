@@ -77,7 +77,6 @@ internal fun LibraryGridScreen(
 ) {
     val items = viewModel.items.collectAsLazyPagingItems()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
-    var menu by remember { mutableStateOf(false) }
     val isTv = LocalIsTv.current
 
     Scaffold(
@@ -85,32 +84,7 @@ internal fun LibraryGridScreen(
             TopAppBar(
                 title = { Text(viewModel.title) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") } },
-                actions = {
-                    Box {
-                        IconButton(onClick = { menu = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort") }
-                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            LibrarySort.entries.forEach { option ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            when (option) {
-                                                LibrarySort.NAME -> "Name"
-                                                LibrarySort.ADDED -> "Recently added"
-                                                LibrarySort.YEAR -> "Release year"
-                                                LibrarySort.RATING -> "Rating"
-                                            },
-                                            color = if (option == sort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                        )
-                                    },
-                                    onClick = {
-                                        viewModel.sortBy(option)
-                                        menu = false
-                                    },
-                                )
-                            }
-                        }
-                    }
-                },
+                actions = { SortMenu(sort, viewModel::sortBy) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
         },

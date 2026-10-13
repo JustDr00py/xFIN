@@ -3,6 +3,10 @@ package com.xfin.data.jellyfin
 import com.xfin.core.model.LibraryView
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
+import com.xfin.core.model.MediaVersion
+import org.jellyfin.sdk.model.api.MediaSourceInfo
+import org.jellyfin.sdk.model.api.MediaStreamType
+import org.jellyfin.sdk.model.api.VideoRangeType
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.imageApi
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -89,8 +93,66 @@ internal fun BaseItemDto.toMediaItem(api: ApiClient, sourceId: Long): MediaItem 
         officialRating = officialRating,
         genres = genres.orEmpty(),
         unplayedCount = userData?.unplayedItemCount,
+        versions = mediaSources.orEmpty().mapIndexedNotNull { index, source -> source.toVersion(index) },
     )
 }
+
+private fun MediaSourceInfo.toVersion(index: Int): MediaVersion? {
+    val id = id ?: return null
+    val video = mediaStreams?.firstOrNull { it.type == MediaStreamType.VIDEO }
+    val audio = mediaStreams?.firstOrNull { it.type == MediaStreamType.AUDIO && it.isDefault }
+        ?: mediaStreams?.firstOrNull { it.type == MediaStreamType.AUDIO }
+    val resolution = video?.let { v ->
+        val w = v.width ?: 0
+        val h = v.height ?: 0
+        when {
+            w >= 3200 || h >= 2000 -> "4K"
+            w >= 2200 || h >= 1300 -> "1440p"
+            w >= 1800 || h >= 1000 -> "1080p"
+            w >= 1200 || h >= 700 -> "720p"
+            h > 0 -> "${h}p"
+            else -> null
+        }
+    }
+    val range = when (video?.videoRangeType) {
+        VideoRangeType.DOVI, VideoRangeType.DOVI_WITH_EL, VideoRangeType.DOVI_WITH_HDR10, VideoRangeType.DOVI_WITH_HLG,
+        VideoRangeType.DOVI_WITH_SDR, VideoRangeType.DOVI_WITH_HDR10_PLUS, VideoRangeType.DOVI_WITH_ELHDR10_PLUS,
+        -> "Dolby Vision"
+        VideoRangeType.HDR10_PLUS -> "HDR10+"
+        VideoRangeType.HDR10 -> "HDR10"
+        VideoRangeType.HLG -> "HLG"
+        else -> null
+    }
+    val audioLabel = audio?.let { a ->
+        listOfNotNull(
+            a.codec?.uppercase(),
+            when (a.channels) {
+                null -> null
+                1 -> "Mono"
+                2 -> "Stereo"
+                6 -> "5.1"
+                8 -> "7.1"
+                else -> "${a.channels}ch"
+            },
+        ).joinToString(" ").ifEmpty { null }
+    }
+    val label = name?.ifBlank { null } ?: "Version ${index + 1}"
+    // Many servers already put resolution, size and bitrate in the version name; don't repeat them.
+    val lower = label.lowercase()
+    fun mentioned(vararg words: String) = words.any { lower.contains(it) }
+    val details = listOfNotNull(
+        resolution?.takeUnless { mentioned("2160", "4k", "1440", "1080", "720", "480", "uhd") },
+        video?.codec?.uppercase()?.replace("H264", "H.264")?.takeUnless { mentioned("hevc", "h.265", "h265", "x265", "h.264", "h264", "x264", "avc", "av1") },
+        range?.takeUnless { mentioned("hdr", "dv", "dolby", "hlg") },
+        audioLabel?.takeUnless { mentioned("truehd", "atmos", "dts", "ac3", "eac3", "aac", "flac") },
+        size?.let(::formatSize)?.takeUnless { mentioned("gb", "mb") },
+        bitrate?.let { "%.0f Mbps".format(it / 1_000_000.0) }?.takeUnless { mentioned("bps") },
+    ).joinToString(" · ")
+    return MediaVersion(id = id, name = label, details = details)
+}
+
+private fun formatSize(bytes: Long): String =
+    if (bytes >= 1_000_000_000) "%.1f GB".format(bytes / 1_000_000_000.0) else "%.0f MB".format(bytes / 1_000_000.0)
 
 internal fun BaseItemDto.toLibraryView(api: ApiClient, sourceId: Long) = LibraryView(
     id = id.toString(),

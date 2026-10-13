@@ -13,6 +13,7 @@ import com.xfin.core.database.entity.SourceEntity
 import com.xfin.core.model.ExternalSubtitle
 import com.xfin.core.model.LibraryView
 import com.xfin.core.model.MediaItem
+import com.xfin.core.model.MediaKind
 import com.xfin.core.model.Source
 import com.xfin.core.model.SourceType
 import com.xfin.core.model.VodStream
@@ -131,8 +132,27 @@ class JellyfinRepository @Inject constructor(
 
     fun pagedItems(sourceId: Long, view: LibraryView, sort: LibrarySort): Flow<PagingData<MediaItem>> =
         Pager(PagingConfig(pageSize = 60, initialLoadSize = 60, enablePlaceholders = true)) {
-            ItemsPagingSource(sourceId, view, sort)
+            ItemsPagingSource(sourceId, view.id, typesFor(view.collectionType), sort)
         }.flow
+
+    /** Every movie (or every show) the user can see on a server, across all its libraries. */
+    fun pagedAll(sourceId: Long, kind: MediaKind, sort: LibrarySort): Flow<PagingData<MediaItem>> =
+        Pager(PagingConfig(pageSize = 60, initialLoadSize = 60, enablePlaceholders = true)) {
+            ItemsPagingSource(sourceId, parentId = null, types = listOf(if (kind == MediaKind.SERIES) BaseItemKind.SERIES else BaseItemKind.MOVIE), sort)
+        }.flow
+
+    /** Movies, shows and episodes matching [term], best matches first. */
+    suspend fun search(sourceId: Long, term: String, limit: Int = 60): List<MediaItem> = call(sourceId) { c ->
+        c.api.libraryApi.getItems(
+            userId = c.userId,
+            searchTerm = term,
+            includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES, BaseItemKind.EPISODE),
+            recursive = true,
+            limit = limit,
+            fields = ROW_FIELDS,
+            enableUserData = true,
+        ).content.items.map { it.toMediaItem(c.api, sourceId) }
+    }
 
     suspend fun item(sourceId: Long, itemId: String): MediaItem = call(sourceId) { c ->
         c.api.libraryApi.getItem(itemId = UUID.fromString(itemId), userId = c.userId).content.toMediaItem(c.api, sourceId)
@@ -150,7 +170,8 @@ class JellyfinRepository @Inject constructor(
             userId = c.userId,
             // "Missing" episodes exist only as metadata; they have no file to play.
             isMissing = false,
-            fields = listOf(ItemFields.OVERVIEW),
+            // Media sources are included so the version picker can open instantly.
+            fields = listOf(ItemFields.OVERVIEW, ItemFields.MEDIA_SOURCES),
             enableUserData = true,
         ).content.items.map { it.toMediaItem(c.api, sourceId) }
     }
@@ -164,6 +185,7 @@ class JellyfinRepository @Inject constructor(
             seriesId = UUID.fromString(seriesId),
             userId = c.userId,
             isMissing = false,
+            fields = listOf(ItemFields.MEDIA_SOURCES),
             enableUserData = true,
         ).content.items.map { it.toMediaItem(c.api, sourceId) }
         val regular = episodes.filter { it.seasonNumber != 0 }.ifEmpty { episodes }
@@ -202,6 +224,8 @@ class JellyfinRepository @Inject constructor(
         subtitleStreamIndex: Int? = null,
         /** False forces a server transcode, e.g. after the device failed to decode the original. */
         allowDirect: Boolean = true,
+        /** A specific version from the version picker; null lets the server choose. */
+        mediaSourceId: String? = null,
     ): VodStream = call(sourceId) { c ->
         val id = UUID.fromString(itemId)
         val info = c.api.mediaInfoApi.getPostedPlaybackInfo(
@@ -212,6 +236,7 @@ class JellyfinRepository @Inject constructor(
                 startTimeTicks = startMs * TICKS_PER_MS,
                 audioStreamIndex = audioStreamIndex,
                 subtitleStreamIndex = subtitleStreamIndex,
+                mediaSourceId = mediaSourceId,
                 deviceProfile = DeviceProfiles.profile(context),
                 enableDirectPlay = allowDirect,
                 enableDirectStream = allowDirect,
@@ -222,7 +247,7 @@ class JellyfinRepository @Inject constructor(
             ),
         ).content
         info.errorCode?.let { throw JellyfinException("The server can't play this item ($it)") }
-        val source = info.mediaSources.firstOrNull() ?: throw JellyfinException("No playable media for this item")
+        val source = info.mediaSources.firstOrNull { it.id == mediaSourceId } ?: info.mediaSources.firstOrNull() ?: throw JellyfinException("No playable media for this item")
         val transcodeUrl = source.transcodingUrl
         val (url, method) = when {
             allowDirect && (source.supportsDirectPlay || source.supportsDirectStream && transcodeUrl == null) -> c.api.videoApi.getVideoStreamUrl(
@@ -306,9 +331,17 @@ class JellyfinRepository @Inject constructor(
         )
     }
 
+    private fun typesFor(collectionType: String?) = when (collectionType) {
+        "movies" -> listOf(BaseItemKind.MOVIE)
+        "tvshows" -> listOf(BaseItemKind.SERIES)
+        "boxsets" -> listOf(BaseItemKind.BOX_SET)
+        else -> emptyList()
+    }
+
     private inner class ItemsPagingSource(
         private val sourceId: Long,
-        private val view: LibraryView,
+        private val parentId: String?,
+        private val types: List<BaseItemKind>,
         private val sort: LibrarySort,
     ) : PagingSource<Int, MediaItem>() {
         override fun getRefreshKey(state: PagingState<Int, MediaItem>): Int? =
@@ -316,16 +349,10 @@ class JellyfinRepository @Inject constructor(
 
         override suspend fun load(params: LoadParams<Int>): LoadResult<Int, MediaItem> = try {
             val start = params.key ?: 0
-            val types = when (view.collectionType) {
-                "movies" -> listOf(BaseItemKind.MOVIE)
-                "tvshows" -> listOf(BaseItemKind.SERIES)
-                "boxsets" -> listOf(BaseItemKind.BOX_SET)
-                else -> emptyList()
-            }
             val result = call(sourceId) { c ->
                 c.api.libraryApi.getItems(
                     userId = c.userId,
-                    parentId = UUID.fromString(view.id),
+                    parentId = parentId?.let(UUID::fromString),
                     includeItemTypes = types,
                     recursive = types.isNotEmpty(),
                     sortBy = listOf(sort.by, ItemSortBy.SORT_NAME),

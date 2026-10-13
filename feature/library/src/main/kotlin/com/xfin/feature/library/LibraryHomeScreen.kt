@@ -20,6 +20,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,8 +46,10 @@ import com.xfin.core.model.MediaKind
 internal fun LibraryHomeScreen(
     onOpenItem: (sourceId: Long, itemId: String) -> Unit,
     onOpenLibrary: (LibraryGridRoute) -> Unit,
-    onPlay: (sourceId: Long, itemId: String, startMs: Long) -> Unit,
+    onPlay: (sourceId: Long, itemId: String, startMs: Long, mediaSourceId: String?) -> Unit,
     onConnect: () -> Unit,
+    onSearch: () -> Unit,
+    onOpenSettings: () -> Unit,
     viewModel: LibraryHomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -72,11 +79,11 @@ internal fun LibraryHomeScreen(
         verticalArrangement = Arrangement.spacedBy(if (isTv) 28.dp else 22.dp),
     ) {
         item {
-            Text(
-                "Library",
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.padding(start = gutter, top = 12.dp),
-            )
+            Row(Modifier.fillMaxWidth().padding(start = gutter, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Library", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
+                IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
+            }
         }
         servers.forEach { home ->
             if (servers.size > 1) {
@@ -112,7 +119,7 @@ internal fun LibraryHomeScreen(
                                         val open = {
                                             // Resumable rows play right away; everything else opens details.
                                             if (row.style == RowStyle.THUMB && item.kind == MediaKind.EPISODE || item.canResume) {
-                                                onPlay(item.sourceId, item.id, if (item.canResume) item.positionMs else 0)
+                                                onPlay(item.sourceId, item.id, if (item.canResume) item.positionMs else 0, null)
                                             } else {
                                                 onOpenItem(item.sourceId, item.id)
                                             }

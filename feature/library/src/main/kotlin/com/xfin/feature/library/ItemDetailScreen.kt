@@ -61,6 +61,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import coil3.compose.SubcomposeAsyncImage
 import com.xfin.core.designsystem.component.EmptyState
 import com.xfin.core.designsystem.component.FocusSurface
 import com.xfin.core.designsystem.component.LocalIsTv
@@ -72,10 +73,29 @@ import com.xfin.core.model.MediaKind
 @Composable
 internal fun ItemDetailScreen(
     onOpenItem: (sourceId: Long, itemId: String) -> Unit,
-    onPlay: (sourceId: Long, itemId: String, startMs: Long) -> Unit,
+    onPlay: (sourceId: Long, itemId: String, startMs: Long, mediaSourceId: String?) -> Unit,
     onBack: () -> Unit,
     viewModel: ItemDetailViewModel = hiltViewModel(),
 ) {
+    // Versions were fetched with the details, so the picker opens instantly; one version plays directly.
+    var pending by remember { mutableStateOf<PendingPlay?>(null) }
+    val play: (MediaItem, Long) -> Unit = { target, startMs ->
+        if (target.versions.size > 1) {
+            pending = PendingPlay(target, startMs)
+        } else {
+            onPlay(viewModel.sourceId, target.id, startMs, target.versions.firstOrNull()?.id)
+        }
+    }
+    pending?.let { p ->
+        VersionPicker(
+            pending = p,
+            onPick = { version ->
+                pending = null
+                onPlay(viewModel.sourceId, p.item.id, p.startMs, version.id)
+            },
+            onDismiss = { pending = null },
+        )
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val isTv = LocalIsTv.current
     var returned by remember { mutableStateOf(false) }
@@ -122,16 +142,20 @@ internal fun ItemDetailScreen(
             item {
                 Column(Modifier.padding(horizontal = gutter).widthIn(max = 900.dp)) {
                     Spacer(Modifier.statusBarsPadding().height(if (isTv) 140.dp else 170.dp))
+                    val title = item.seriesName ?: item.name
                     if (item.logoUrl != null) {
-                        AsyncImage(
+                        // The title text stands in while the logo loads (or if it fails).
+                        SubcomposeAsyncImage(
                             model = item.logoUrl,
-                            contentDescription = item.name,
+                            contentDescription = title,
                             contentScale = ContentScale.Fit,
                             alignment = Alignment.CenterStart,
+                            loading = { Text(title, style = MaterialTheme.typography.displaySmall) },
+                            error = { Text(title, style = MaterialTheme.typography.displaySmall) },
                             modifier = Modifier.heightIn(max = if (isTv) 120.dp else 90.dp).widthIn(max = 420.dp),
                         )
                     } else {
-                        Text(item.seriesName ?: item.name, style = MaterialTheme.typography.displaySmall)
+                        Text(title, style = MaterialTheme.typography.displaySmall)
                     }
                     if (item.kind == MediaKind.EPISODE) {
                         Text(
@@ -149,8 +173,16 @@ internal fun ItemDetailScreen(
                             modifier = Modifier.padding(top = 4.dp),
                         )
                     }
+                    if (item.versions.size > 1) {
+                        Text(
+                            "${item.versions.size} versions",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
                     Spacer(Modifier.height(20.dp))
-                    Actions(item, state.upNext, playFocus, onPlay, viewModel::togglePlayed, viewModel.sourceId)
+                    Actions(item, state.upNext, playFocus, play, viewModel::togglePlayed)
                     item.overview?.let { Overview(it, Modifier.padding(top = 20.dp)) }
                 }
             }
@@ -182,7 +214,7 @@ internal fun ItemDetailScreen(
                     EpisodeRow(
                         episode = episode,
                         gutter = gutter,
-                        onPlay = { onPlay(viewModel.sourceId, episode.id, if (episode.canResume) episode.positionMs else 0) },
+                        onPlay = { play(episode, if (episode.canResume) episode.positionMs else 0) },
                     )
                 }
             }
@@ -220,16 +252,15 @@ private fun Actions(
     item: MediaItem,
     upNext: MediaItem?,
     playFocus: FocusRequester,
-    onPlay: (Long, String, Long) -> Unit,
+    onPlay: (MediaItem, Long) -> Unit,
     onTogglePlayed: () -> Unit,
-    sourceId: Long,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         // Series play their next episode; everything else plays itself.
         val target = if (item.kind == MediaKind.SERIES) upNext else item
         if (target != null) {
             Button(
-                onClick = { onPlay(sourceId, target.id, if (target.canResume) target.positionMs else 0) },
+                onClick = { onPlay(target, if (target.canResume) target.positionMs else 0) },
                 modifier = Modifier.focusRequester(playFocus),
             ) {
                 Icon(Icons.Rounded.PlayArrow, null)
@@ -243,7 +274,7 @@ private fun Actions(
                 )
             }
             if (target.canResume) {
-                OutlinedButton(onClick = { onPlay(sourceId, target.id, 0) }) {
+                OutlinedButton(onClick = { onPlay(target, 0) }) {
                     Icon(Icons.Rounded.Replay, null)
                     Spacer(Modifier.width(6.dp))
                     Text("From start")

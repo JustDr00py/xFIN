@@ -29,6 +29,8 @@ data class MediaItem(
     val officialRating: String? = null,
     val genres: List<String> = emptyList(),
     val unplayedCount: Int? = null,
+    /** Alternative files for the same title (e.g. 4K and 1080p); empty when not fetched. */
+    val versions: List<MediaVersion> = emptyList(),
 ) {
     /** Fraction watched, for progress bars; 0 when unknown or not started. */
     val progress: Float
@@ -43,6 +45,15 @@ data class MediaItem(
             episodeNumber?.let { "E$it" },
         ).joinToString(" ").ifEmpty { null }
 }
+
+/** One playable file of a title, as offered by the version picker. */
+data class MediaVersion(
+    val id: String,
+    /** Server-provided name, usually from the file name ("4K", "Director's Cut"). */
+    val name: String,
+    /** Resolution, codec, HDR, audio, size and bitrate, e.g. "4K · HEVC · Dolby Vision · 18.2 GB". */
+    val details: String,
+)
 
 /** A top-level library ("Movies", "Shows") on a server. */
 data class LibraryView(
