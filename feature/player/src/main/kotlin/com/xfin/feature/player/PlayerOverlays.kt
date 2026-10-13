@@ -14,7 +14,9 @@ import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.ui.draw.clip
@@ -96,6 +98,8 @@ internal fun ChannelOverlay(
     onChannels: () -> Unit,
     onZap: (Int) -> Unit,
     onTogglePlay: () -> Unit,
+    onPip: () -> Unit,
+    onMultiview: () -> Unit,
 ) {
     AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
         Box(
@@ -114,6 +118,7 @@ internal fun ChannelOverlay(
                     if (playback.audioTracks.size > 1 || playback.audioLanguage != null) {
                         AudioChip(playback.audioLanguage, onOptions)
                     }
+                    RoundButton(Icons.Rounded.PictureInPictureAlt, "Picture in picture", onPip)
                     if (ui.lineupSize > 1 && ui.hasMiniGuide) RoundButton(Icons.AutoMirrored.Rounded.ViewList, "Channel guide", onChannels)
                     RoundButton(Icons.Rounded.MoreHoriz, "More", onOptions)
                 }
@@ -148,6 +153,7 @@ internal fun ChannelOverlay(
                             onTogglePlay = onTogglePlay,
                             onFavorite = onFavorite,
                             onOptions = onOptions,
+                            onMultiview = onMultiview,
                             modifier = Modifier.padding(start = 16.dp),
                         )
                     }
@@ -267,6 +273,7 @@ private fun ControlPill(
     onTogglePlay: () -> Unit,
     onFavorite: () -> Unit,
     onOptions: () -> Unit,
+    onMultiview: () -> Unit,
     modifier: Modifier,
 ) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -282,6 +289,7 @@ private fun ControlPill(
                     tint = if (favorite) XfinColors.Live else Color.White,
                 )
             }
+            IconButton(onClick = onMultiview) { Icon(Icons.Rounded.GridView, "Multiview", tint = Color.White) }
             IconButton(onClick = onOptions) { Icon(Icons.Rounded.ClosedCaption, "Subtitles", tint = Color.White) }
             IconButton(onClick = onOptions) { Icon(Icons.Rounded.GraphicEq, "Audio", tint = Color.White) }
         }

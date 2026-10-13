@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
-import com.xfin.data.jellyfin.JellyfinRepository
+import com.xfin.data.library.LibraryRepository
 import com.xfin.data.jellyfin.VersionPreferences
 import com.xfin.core.model.MediaVersion
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,7 +32,7 @@ data class ItemDetailState(
 @HiltViewModel
 class ItemDetailViewModel @Inject constructor(
     savedState: SavedStateHandle,
-    private val jellyfin: JellyfinRepository,
+    private val jellyfin: LibraryRepository,
     private val versions: VersionPreferences,
 ) : ViewModel() {
     /** Version choices made on this page, on top of the remembered ones. */
@@ -102,7 +102,7 @@ class ItemDetailViewModel @Inject constructor(
         val played = !item.played
         _state.update { it.copy(item = item.copy(played = played, positionMs = if (played) 0 else item.positionMs)) }
         viewModelScope.launch {
-            runCatching { jellyfin.setPlayed(sourceId, item.id, played) }
+            runCatching { jellyfin.setPlayed(item, played) }
             load()
         }
     }

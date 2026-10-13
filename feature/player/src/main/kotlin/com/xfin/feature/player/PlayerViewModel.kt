@@ -69,6 +69,9 @@ class PlayerViewModel @Inject constructor(
     private val route = savedState.toRoute<PlayerRoute>()
     private val filter = decodeChannelFilter(route.filter)
 
+    /** The encoded lineup filter, passed on to multiview so it can offer the same channels. */
+    val filterKey: String = route.filter
+
     /**
      * The zapping lineup as channel ids only, so even 100k-channel playlists open instantly;
      * channel details are loaded for the current position and its neighbours on demand.

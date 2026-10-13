@@ -46,7 +46,7 @@ import com.xfin.core.designsystem.component.EmptyState
 import com.xfin.core.designsystem.component.LocalIsTv
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
-import com.xfin.data.jellyfin.JellyfinRepository
+import com.xfin.data.library.LibraryRepository
 import com.xfin.data.sources.ChannelRepository
 import com.xfin.data.sources.EpgRepository
 import com.xfin.core.model.Channel
@@ -90,7 +90,7 @@ data class SearchState(
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     savedState: androidx.lifecycle.SavedStateHandle,
-    private val jellyfin: JellyfinRepository,
+    private val jellyfin: LibraryRepository,
     private val channels: ChannelRepository,
     private val epg: EpgRepository,
 ) : ViewModel() {

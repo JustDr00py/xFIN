@@ -39,9 +39,44 @@ class XtreamClient @Inject constructor(private val http: OkHttpClient) {
         file
     }
 
-    private suspend fun <T> get(creds: XtreamCredentials, action: String?, read: (InputStream) -> T): T =
+    suspend fun vodCategories(creds: XtreamCredentials): List<XtreamCategory> =
+        get(creds, "get_vod_categories") { XtreamParsing.categories(XtreamParsing.json.decodeFromStream<JsonElement>(it)) }
+
+    suspend fun seriesCategories(creds: XtreamCredentials): List<XtreamCategory> =
+        get(creds, "get_series_categories") { XtreamParsing.categories(XtreamParsing.json.decodeFromStream<JsonElement>(it)) }
+
+    /** Downloads a large list action (get_vod_streams, get_series) to a temp file. */
+    suspend fun download(creds: XtreamCredentials, action: String): File = get(creds, action) { input ->
+        val file = File.createTempFile("xtream_$action", ".json")
+        try {
+            file.outputStream().use { input.copyTo(it) }
+        } catch (e: Throwable) {
+            file.delete()
+            throw e
+        }
+        file
+    }
+
+    suspend fun movieInfo(creds: XtreamCredentials, streamId: Long): XtreamMovieInfo? =
+        get(creds, "get_vod_info", mapOf("vod_id" to streamId.toString())) {
+            XtreamVodParsing.movieInfo(XtreamParsing.json.decodeFromStream<JsonElement>(it))
+        }
+
+    suspend fun seriesInfo(creds: XtreamCredentials, seriesId: Long): XtreamSeriesInfo? =
+        get(creds, "get_series_info", mapOf("series_id" to seriesId.toString())) {
+            XtreamVodParsing.seriesInfo(XtreamParsing.json.decodeFromStream<JsonElement>(it))
+        }
+
+    private suspend fun <T> get(
+        creds: XtreamCredentials,
+        action: String?,
+        extra: Map<String, String> = emptyMap(),
+        read: (InputStream) -> T,
+    ): T =
+
         withContext(Dispatchers.IO) {
-            val request = Request.Builder().url(apiUrl(creds, action)).build()
+            val url = apiUrl(creds, action).newBuilder().apply { extra.forEach { (k, v) -> addQueryParameter(k, v) } }.build()
+            val request = Request.Builder().url(url).build()
             http.newCall(request).execute().use { response ->
                 response.requireSuccess()
                 response.body.byteStream().use(read)
@@ -56,6 +91,22 @@ class XtreamClient @Inject constructor(private val http: OkHttpClient) {
     }
 
     companion object {
+        fun parseMovies(file: File, onMovie: (XtreamMovie) -> Unit) = parseArray(file) { XtreamVodParsing.movie(it)?.let(onMovie) }
+
+        fun parseSeries(file: File, onSeries: (XtreamSeries) -> Unit) = parseArray(file) { XtreamVodParsing.series(it)?.let(onSeries) }
+
+        private fun parseArray(file: File, onElement: (JsonElement) -> Unit) {
+            file.inputStream().buffered().use { input ->
+                XtreamParsing.json.decodeToSequence<JsonElement>(input).forEach(onElement)
+            }
+        }
+
+        fun movieUrl(creds: XtreamCredentials, streamId: Long, extension: String): String =
+            "${creds.baseUrl}/movie/${creds.username.encodePath()}/${creds.password.encodePath()}/$streamId.$extension"
+
+        fun episodeUrl(creds: XtreamCredentials, episodeId: Long, extension: String): String =
+            "${creds.baseUrl}/series/${creds.username.encodePath()}/${creds.password.encodePath()}/$episodeId.$extension"
+
         /** Streams a downloaded live list element by element, in constant memory. */
         fun parseLiveStreams(file: File, onStream: (XtreamLiveStream) -> Unit) {
             file.inputStream().buffered().use { input ->

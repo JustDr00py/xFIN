@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -48,7 +49,7 @@ import com.xfin.core.designsystem.component.LocalIsTv
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
 import com.xfin.core.model.Source
-import com.xfin.data.jellyfin.JellyfinRepository
+import com.xfin.data.library.LibraryRepository
 import com.xfin.data.jellyfin.LibrarySort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -59,6 +60,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
@@ -66,7 +68,7 @@ import javax.inject.Inject
 /** Every movie or every show across a server's libraries, like UHF's Movies and TV Shows tabs. */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
-class CatalogViewModel @Inject constructor(private val jellyfin: JellyfinRepository) : ViewModel() {
+class CatalogViewModel @Inject constructor(private val jellyfin: LibraryRepository) : ViewModel() {
     private val kind = MutableStateFlow(MediaKind.MOVIE)
     private val _sort = MutableStateFlow(LibrarySort.ADDED)
     val sort: StateFlow<LibrarySort> = _sort.asStateFlow()
@@ -81,7 +83,7 @@ class CatalogViewModel @Inject constructor(private val jellyfin: JellyfinReposit
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     val items: Flow<PagingData<MediaItem>> = combine(server, kind, _sort) { s, k, o -> Triple(s, k, o) }
-        .flatMapLatest { (s, k, o) -> if (s == null) emptyFlow() else jellyfin.pagedAll(s, k, o) }
+        .flatMapLatest { (s, k, o) -> if (s == null) emptyFlow() else kotlinx.coroutines.flow.flow { emitAll(jellyfin.pagedAll(s, k, o)) } }
         .cachedIn(viewModelScope)
 
     fun setKind(value: MediaKind) {
@@ -103,6 +105,7 @@ internal fun CatalogScreen(
     onOpenItem: (sourceId: Long, itemId: String) -> Unit,
     onSearch: () -> Unit,
     onConnect: () -> Unit,
+    onOpenSettings: () -> Unit,
     viewModel: CatalogViewModel = hiltViewModel(key = kind.name),
 ) {
     remember(kind) { viewModel.setKind(kind) }
@@ -134,6 +137,7 @@ internal fun CatalogScreen(
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
             SortMenu(sort, viewModel::sortBy)
+            IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
         }
         if (list.size > 1) {
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

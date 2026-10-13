@@ -64,7 +64,11 @@ import kotlinx.coroutines.delay
 
 @OptIn(UnstableApi::class)
 @Composable
-internal fun PlayerScreen(onBack: () -> Unit, viewModel: PlayerViewModel = hiltViewModel()) {
+internal fun PlayerScreen(
+    onBack: () -> Unit,
+    onOpenMultiview: (MultiviewRoute) -> Unit = {},
+    viewModel: PlayerViewModel = hiltViewModel(),
+) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val nowNext by viewModel.nowNext.collectAsStateWithLifecycle()
@@ -106,6 +110,10 @@ internal fun PlayerScreen(onBack: () -> Unit, viewModel: PlayerViewModel = hiltV
 
     val swipeThreshold = with(LocalDensity.current) { 64.dp.toPx() }
     val presentation = rememberPresentationState(player)
+    val inPip = rememberIsInPip()
+    val enterPip = if (isTv) ({}) else PipEffect(presentation.videoSizeDp ?: androidx.compose.ui.geometry.Size.Zero, playback.playing) {
+        viewModel.livePlayer.togglePlay()
+    }
 
     Box(
         modifier = Modifier
@@ -183,7 +191,7 @@ internal fun PlayerScreen(onBack: () -> Unit, viewModel: PlayerViewModel = hiltV
         }
 
         ChannelOverlay(
-            visible = overlayVisible && !panelOpen && !guideOpen,
+            visible = overlayVisible && !panelOpen && !guideOpen && !inPip,
             ui = ui,
             playback = playback,
             nowNext = nowNext,
@@ -195,10 +203,12 @@ internal fun PlayerScreen(onBack: () -> Unit, viewModel: PlayerViewModel = hiltV
             onChannels = { guideOpen = true },
             onZap = { viewModel.zap(it); poke() },
             onTogglePlay = { viewModel.livePlayer.togglePlay(); poke() },
+            onPip = enterPip,
+            onMultiview = { ui.channel?.let { onOpenMultiview(MultiviewRoute(it.id, viewModel.filterKey)) } },
         )
 
         val error = ui.resolveError ?: playback.error
-        if (error != null && !panelOpen && !guideOpen) {
+        if (error != null && !panelOpen && !guideOpen && !inPip) {
             ErrorCard(
                 message = error,
                 onRetry = viewModel::retry,
@@ -267,17 +277,26 @@ internal fun FullscreenEffect(lockLandscape: Boolean) {
         val activity = context.findActivity()
         val window = activity?.window
         val controller = window?.let { WindowCompat.getInsetsController(it, view) }
-        val previousOrientation = activity?.requestedOrientation
+        // Player screens can replace each other (player <-> multiview); the next one starts before the
+        // previous is disposed, so only the last one out restores orientation and system bars.
+        if (FullscreenLock.holders++ == 0) FullscreenLock.previousOrientation = activity?.requestedOrientation
         if (lockLandscape) activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller?.hide(WindowInsetsCompat.Type.systemBars())
         view.keepScreenOn = true
         onDispose {
-            view.keepScreenOn = false
-            controller?.show(WindowInsetsCompat.Type.systemBars())
-            if (lockLandscape && previousOrientation != null) activity.requestedOrientation = previousOrientation
+            if (--FullscreenLock.holders == 0) {
+                view.keepScreenOn = false
+                controller?.show(WindowInsetsCompat.Type.systemBars())
+                FullscreenLock.previousOrientation?.let { if (lockLandscape) activity?.requestedOrientation = it }
+            }
         }
     }
+}
+
+private object FullscreenLock {
+    var holders = 0
+    var previousOrientation: Int? = null
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {

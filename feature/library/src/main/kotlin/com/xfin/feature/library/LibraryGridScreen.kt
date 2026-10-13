@@ -38,7 +38,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.xfin.core.designsystem.component.LocalIsTv
 import com.xfin.core.model.LibraryView
-import com.xfin.data.jellyfin.JellyfinRepository
+import com.xfin.data.library.LibraryRepository
 import com.xfin.data.jellyfin.LibrarySort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -52,7 +52,7 @@ import javax.inject.Inject
 @HiltViewModel
 class LibraryGridViewModel @Inject constructor(
     savedState: SavedStateHandle,
-    jellyfin: JellyfinRepository,
+    jellyfin: LibraryRepository,
 ) : ViewModel() {
     private val route = savedState.toRoute<LibraryGridRoute>()
     val title: String = route.name

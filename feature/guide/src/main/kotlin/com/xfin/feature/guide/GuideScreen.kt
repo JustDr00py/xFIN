@@ -20,6 +20,8 @@ import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
@@ -97,6 +99,7 @@ internal fun GuideScreen(
                 )
                 Icon(Icons.Rounded.ArrowDropDown, null)
             }
+            IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
             FilledTonalButton(onClick = {
                 scope.launch { timeline.animateTo(timeline.x(now - TimeUnit.MINUTES.toMillis(30))) }
             }) {

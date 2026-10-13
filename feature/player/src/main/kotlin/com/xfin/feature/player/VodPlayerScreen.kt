@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -117,6 +118,10 @@ internal fun VodPlayerScreen(
     BackHandler(enabled = panel) { panel = false }
 
     val presentation = rememberPresentationState(vod.player)
+    val inPip = rememberIsInPip()
+    val enterPip = if (isTv) ({}) else PipEffect(presentation.videoSizeDp ?: androidx.compose.ui.geometry.Size.Zero, playback.playing) {
+        vod.togglePlay()
+    }
 
     Box(
         modifier = Modifier
@@ -174,7 +179,7 @@ internal fun VodPlayerScreen(
             CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp, modifier = Modifier.align(Alignment.Center).size(52.dp))
         }
 
-        AnimatedVisibility(overlay && !panel, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
+        AnimatedVisibility(overlay && !panel && !inPip, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
             Controls(
                 item = ui.item,
                 playback = playback,
@@ -184,11 +189,12 @@ internal fun VodPlayerScreen(
                 onSeekBy = { vod.seekBy(it); poke() },
                 onSeekTo = { vod.seekTo(it); poke() },
                 onTracks = { panel = true },
+                onPip = enterPip,
             )
         }
 
         val error = ui.error ?: playback.error
-        if (error != null) {
+        if (error != null && !inPip) {
             ErrorCard(error, onRetry = viewModel::retry, onNext = onBack, nextLabel = "Close", modifier = Modifier.align(Alignment.Center))
         }
 
@@ -227,6 +233,7 @@ private fun Controls(
     onSeekBy: (Long) -> Unit,
     onSeekTo: (Long) -> Unit,
     onTracks: () -> Unit,
+    onPip: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         Row(
@@ -255,6 +262,7 @@ private fun Controls(
                     )
                 }
             }
+            if (!isTv) IconButton(onClick = onPip) { Icon(Icons.Rounded.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
             IconButton(onClick = onTracks) { Icon(Icons.Rounded.Tune, "Audio and subtitles", tint = Color.White) }
         }
 

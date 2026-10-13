@@ -24,6 +24,8 @@ internal fun SourceEntity.toModel() = Source(
     lastRefreshedAt = lastRefreshedAt,
     lastError = lastError,
     epg = EpgStatus(updatedAt = epgUpdatedAt, programCount = epgProgramCount, error = epgError),
+    vodMovieCount = vodMovieCount,
+    vodSeriesCount = vodSeriesCount,
 )
 
 internal fun ChannelRow.toModel() = Channel(

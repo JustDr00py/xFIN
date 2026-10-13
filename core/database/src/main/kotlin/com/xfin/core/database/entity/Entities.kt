@@ -33,6 +33,68 @@ data class SourceEntity(
     /** Jellyfin: the signed-in user and the server's id (the access token lives in passwordEnc). */
     val userId: String? = null,
     val serverId: String? = null,
+    /** Xtream movies/series are imported under a new generation, then swapped in (like the guide). */
+    @ColumnInfo(defaultValue = "0") val vodGeneration: Int = 0,
+    @ColumnInfo(defaultValue = "0") val vodMovieCount: Int = 0,
+    @ColumnInfo(defaultValue = "0") val vodSeriesCount: Int = 0,
+    val vodUpdatedAt: Long? = null,
+)
+
+/** A movie or series from an Xtream provider's VOD catalogue. */
+@Entity(
+    tableName = "vod_items",
+    primaryKeys = ["sourceId", "generation", "kind", "providerId"],
+    foreignKeys = [
+        ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [
+        Index(value = ["sourceId", "generation", "kind", "added"]),
+        Index(value = ["sourceId", "generation", "kind", "name"]),
+    ],
+)
+data class VodItemEntity(
+    val sourceId: Long,
+    val generation: Int,
+    /** "movie" or "series". */
+    val kind: String,
+    val providerId: Long,
+    val name: String,
+    val poster: String? = null,
+    val category: String? = null,
+    val rating: Float? = null,
+    val year: Int? = null,
+    val added: Long = 0,
+    val extension: String? = null,
+    val plot: String? = null,
+    val genre: String? = null,
+    val backdrop: String? = null,
+)
+
+/** Local watch progress for sources that don't sync it themselves (Xtream VOD). */
+@Entity(
+    tableName = "vod_progress",
+    primaryKeys = ["sourceId", "itemId"],
+    foreignKeys = [
+        ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index(value = ["sourceId", "updatedAt"])],
+)
+data class VodProgressEntity(
+    val sourceId: Long,
+    val itemId: String,
+    val positionMs: Long,
+    val durationMs: Long,
+    val played: Boolean,
+    val updatedAt: Long,
+    /** Enough to show the item in "Continue watching" without the network. */
+    val kind: String,
+    val name: String,
+    val seriesId: String? = null,
+    val seriesName: String? = null,
+    val posterUrl: String? = null,
+    val thumbUrl: String? = null,
+    val seasonNumber: Int? = null,
+    val episodeNumber: Int? = null,
 )
 
 @Entity(

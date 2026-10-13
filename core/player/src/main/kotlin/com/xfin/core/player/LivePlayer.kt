@@ -155,6 +155,21 @@ class LivePlayer @Inject constructor(
             .build()
     }
 
+    /**
+     * For multiview: several players play at once, so none may take audio focus (it would pause
+     * the others); the UI mutes all but one instead.
+     */
+    fun useForMultiview() {
+        player.setAudioAttributes(
+            AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
+            /* handleAudioFocus = */ false,
+        )
+    }
+
+    fun setMuted(muted: Boolean) {
+        player.volume = if (muted) 0f else 1f
+    }
+
     fun togglePlay() {
         if (player.isPlaying) {
             player.pause()

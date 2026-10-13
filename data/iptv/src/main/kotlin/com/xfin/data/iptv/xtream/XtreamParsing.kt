@@ -54,15 +54,15 @@ internal object XtreamParsing {
         )
     }
 
-    private fun JsonObject.string(key: String): String? = when (val v = get(key)) {
+    internal fun JsonObject.string(key: String): String? = when (val v = get(key)) {
         null, JsonNull -> null
         is JsonPrimitive -> v.contentOrNull
         else -> null
     }
 
-    private fun JsonObject.long(key: String): Long? = string(key)?.trim()?.let {
+    internal fun JsonObject.long(key: String): Long? = string(key)?.trim()?.let {
         it.toLongOrNull() ?: it.toDoubleOrNull()?.toLong()
     }
 
-    private fun JsonObject.int(key: String): Int? = long(key)?.toInt()
+    internal fun JsonObject.int(key: String): Int? = long(key)?.toInt()
 }

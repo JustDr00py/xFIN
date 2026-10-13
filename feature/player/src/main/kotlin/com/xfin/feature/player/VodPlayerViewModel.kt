@@ -11,7 +11,7 @@ import com.xfin.core.model.MediaKind
 import com.xfin.core.model.VodStream
 import com.xfin.core.player.VodPlayer
 import com.xfin.core.player.VodPlayerState
-import com.xfin.data.jellyfin.JellyfinRepository
+import com.xfin.data.library.LibraryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -41,7 +41,7 @@ data class VodUiState(
 @HiltViewModel
 class VodPlayerViewModel @Inject constructor(
     savedState: SavedStateHandle,
-    private val jellyfin: JellyfinRepository,
+    private val jellyfin: LibraryRepository,
     val player: VodPlayer,
 ) : ViewModel() {
     private val route = savedState.toRoute<VodPlayerRoute>()
@@ -86,7 +86,7 @@ class VodPlayerViewModel @Inject constructor(
         viewModelScope.launch {
             player.state.map { it.decodeFailed }.distinctUntilChanged().filter { it }.collect {
                 val s = stream ?: return@collect
-                if (s.playMethod == "Transcode") return@collect
+                if (s.playMethod == "Transcode" || !jellyfin.canTranscode(s.sourceId)) return@collect
                 val position = player.state.value.positionMs.takeIf { it > 0 } ?: s.startMs
                 android.util.Log.i("xFIN-vod", "decode failed with ${s.playMethod}; retrying as a transcode")
                 try {
@@ -109,17 +109,20 @@ class VodPlayerViewModel @Inject constructor(
 
     private suspend fun report() {
         val s = stream ?: return
-        jellyfin.reportProgress(s, player.state.value.positionMs, paused = !player.state.value.playing)
+        val p = player.state.value
+        jellyfin.reportProgress(s, _ui.value.item, p.positionMs, p.durationMs, paused = !p.playing)
     }
 
     override fun onCleared() {
         val s = stream
         val position = player.state.value.positionMs
+        val duration = player.state.value.durationMs
+        val item = _ui.value.item
         player.release()
         // The view model scope is gone; finish the stop report on its own.
         if (s != null) {
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                withContext(NonCancellable) { jellyfin.reportStopped(s, position) }
+                withContext(NonCancellable) { jellyfin.reportStopped(s, item, position, duration) }
             }
         }
     }

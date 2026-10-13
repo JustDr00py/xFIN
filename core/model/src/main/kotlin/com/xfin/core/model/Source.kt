@@ -19,6 +19,8 @@ data class Source(
     val lastRefreshedAt: Long? = null,
     val lastError: String? = null,
     val epg: EpgStatus = EpgStatus(null, 0, null),
+    val vodMovieCount: Int = 0,
+    val vodSeriesCount: Int = 0,
 )
 
 sealed interface RefreshState {

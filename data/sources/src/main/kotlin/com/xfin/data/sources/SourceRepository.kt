@@ -46,6 +46,7 @@ class SourceRepository @Inject internal constructor(
     private val playlistLoader: PlaylistLoader,
     private val xtream: XtreamClient,
     private val epg: EpgRepository,
+    private val vod: VodRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -100,6 +101,7 @@ class SourceRepository @Inject internal constructor(
         try {
             import(sourceId)
             if (withGuide) epg.launchRefresh(sourceId)
+            vod.launchRefresh(sourceId)
         } catch (e: Exception) {
             val message = e.message ?: e::class.simpleName.orEmpty()
             sourceDao.markFailed(sourceId, message)
@@ -139,8 +141,9 @@ class SourceRepository @Inject internal constructor(
             sourceDao.delete(id)
             throw e
         }
-        // The guide can be large; load it in the background so the user lands on channels at once.
+        // The guide and movie catalogue can be large; load them in the background.
         epg.launchRefresh(id)
+        vod.launchRefresh(id)
         return id
     }
 

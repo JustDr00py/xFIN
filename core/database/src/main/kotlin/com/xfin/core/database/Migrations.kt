@@ -99,3 +99,34 @@ internal val MIGRATION_5_6 = object : Migration(5, 6) {
         db.execSQL("ALTER TABLE `sources` ADD COLUMN `serverId` TEXT")
     }
 }
+
+/** v7: Xtream movies/series catalogue and local watch progress. */
+internal val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `sources` ADD COLUMN `vodGeneration` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `sources` ADD COLUMN `vodMovieCount` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `sources` ADD COLUMN `vodSeriesCount` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `sources` ADD COLUMN `vodUpdatedAt` INTEGER")
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `vod_items` (`sourceId` INTEGER NOT NULL, `generation` INTEGER NOT NULL, " +
+                "`kind` TEXT NOT NULL, `providerId` INTEGER NOT NULL, `name` TEXT NOT NULL, `poster` TEXT, `category` TEXT, " +
+                "`rating` REAL, `year` INTEGER, `added` INTEGER NOT NULL, `extension` TEXT, `plot` TEXT, `genre` TEXT, " +
+                "`backdrop` TEXT, PRIMARY KEY(`sourceId`, `generation`, `kind`, `providerId`), FOREIGN KEY(`sourceId`) " +
+                "REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_vod_items_sourceId_generation_kind_added` ON `vod_items` (`sourceId`, `generation`, `kind`, `added`)",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_vod_items_sourceId_generation_kind_name` ON `vod_items` (`sourceId`, `generation`, `kind`, `name`)",
+        )
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `vod_progress` (`sourceId` INTEGER NOT NULL, `itemId` TEXT NOT NULL, " +
+                "`positionMs` INTEGER NOT NULL, `durationMs` INTEGER NOT NULL, `played` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, " +
+                "`kind` TEXT NOT NULL, `name` TEXT NOT NULL, `seriesId` TEXT, `seriesName` TEXT, `posterUrl` TEXT, `thumbUrl` TEXT, " +
+                "`seasonNumber` INTEGER, `episodeNumber` INTEGER, PRIMARY KEY(`sourceId`, `itemId`), FOREIGN KEY(`sourceId`) " +
+                "REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_vod_progress_sourceId_updatedAt` ON `vod_progress` (`sourceId`, `updatedAt`)")
+    }
+}

@@ -5,6 +5,9 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.xfin.core.database.dao.ChannelDao
 import com.xfin.core.database.dao.ProgramDao
+import com.xfin.core.database.dao.VodDao
+import com.xfin.core.database.entity.VodItemEntity
+import com.xfin.core.database.entity.VodProgressEntity
 import com.xfin.core.database.dao.SourceDao
 import com.xfin.core.database.entity.ChannelEntity
 import com.xfin.core.database.entity.ChannelFtsEntity
@@ -27,8 +30,10 @@ import com.xfin.core.database.entity.SourceEntity
         EpgChannelEntity::class,
         ChannelFtsEntity::class,
         StagedChannelEntity::class,
+        VodItemEntity::class,
+        VodProgressEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
@@ -36,4 +41,5 @@ abstract class XfinDatabase : RoomDatabase() {
     abstract fun sourceDao(): SourceDao
     abstract fun channelDao(): ChannelDao
     abstract fun programDao(): ProgramDao
+    abstract fun vodDao(): VodDao
 }

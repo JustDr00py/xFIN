@@ -22,11 +22,13 @@ class RefreshWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val sources: SourceRepository,
     private val epg: EpgRepository,
+    private val vod: VodRepository,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
         sources.refreshStale(maxAgeMs = TimeUnit.HOURS.toMillis(24))
         epg.refreshStale(maxAgeMs = TimeUnit.HOURS.toMillis(12))
+        vod.refreshStale(maxAgeMs = TimeUnit.HOURS.toMillis(24))
         return Result.success()
     }
 

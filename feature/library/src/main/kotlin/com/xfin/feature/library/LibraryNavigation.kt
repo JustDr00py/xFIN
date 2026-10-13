@@ -49,10 +49,10 @@ fun NavGraphBuilder.libraryScreens(
         }
     }
     composable<MoviesRoute> {
-        shell { CatalogScreen(MediaKind.MOVIE, onOpenItem = onOpenItem, onSearch = onSearch, onConnect = onConnect) }
+        shell { CatalogScreen(MediaKind.MOVIE, onOpenItem = onOpenItem, onSearch = onSearch, onConnect = onConnect, onOpenSettings = onOpenSettings) }
     }
     composable<ShowsRoute> {
-        shell { CatalogScreen(MediaKind.SERIES, onOpenItem = onOpenItem, onSearch = onSearch, onConnect = onConnect) }
+        shell { CatalogScreen(MediaKind.SERIES, onOpenItem = onOpenItem, onSearch = onSearch, onConnect = onConnect, onOpenSettings = onOpenSettings) }
     }
     composable<SearchRoute> {
         SearchScreen(onOpenItem = onOpenItem, onPlayChannel = onPlayChannel, onBack = onBack)

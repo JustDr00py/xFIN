@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.xfin.core.model.LibraryView
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.Source
-import com.xfin.data.jellyfin.JellyfinRepository
+import com.xfin.data.library.LibraryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -36,7 +36,7 @@ data class LibraryHomeState(
 )
 
 @HiltViewModel
-class LibraryHomeViewModel @Inject constructor(private val jellyfin: JellyfinRepository) : ViewModel() {
+class LibraryHomeViewModel @Inject constructor(private val jellyfin: LibraryRepository) : ViewModel() {
 
     private val _state = MutableStateFlow(LibraryHomeState())
     val state: StateFlow<LibraryHomeState> = _state.asStateFlow()

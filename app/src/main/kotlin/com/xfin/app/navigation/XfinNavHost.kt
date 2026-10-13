@@ -27,6 +27,7 @@ import com.xfin.feature.library.libraryScreens
 import com.xfin.feature.onboarding.AddJellyfinRoute
 import com.xfin.feature.onboarding.SourceKind
 import com.xfin.feature.player.VodPlayerRoute
+import com.xfin.feature.player.MultiviewRoute
 import com.xfin.app.SourceSummary
 import com.xfin.feature.livetv.liveTvScreen
 import com.xfin.feature.onboarding.AddSourceRoute
@@ -90,6 +91,14 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
         }
     }
 
+    val openSettings: () -> Unit = {
+        navController.navigate(SettingsRoute) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = startDestination,
@@ -111,16 +120,12 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
         liveTvScreen(
             onPlay = { id, filter -> navController.navigate(PlayerRoute(id, filter.encode())) },
             onSearch = { navController.navigate(SearchRoute(SearchScope.LIVE.name)) },
+            onOpenSettings = openSettings,
             shell = shell,
         )
         guideScreen(
             onPlay = { id, filter -> navController.navigate(PlayerRoute(id, filter.encode())) },
-            onOpenSettings = {
-                navController.navigate(SettingsRoute) {
-                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                    launchSingleTop = true
-                }
-            },
+            onOpenSettings = openSettings,
             shell = shell,
         )
         settingsScreen(
@@ -136,12 +141,7 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
             onConnect = { navController.navigate(AddJellyfinRoute) },
             onSearch = { navController.navigate(SearchRoute()) },
             onPlayChannel = { channelId -> navController.navigate(PlayerRoute(channelId, ChannelFilter.All.encode())) },
-            onOpenSettings = {
-                navController.navigate(SettingsRoute) {
-                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                    launchSingleTop = true
-                }
-            },
+            onOpenSettings = openSettings,
             onBack = { navController.popBackStack() },
             shell = shell,
         )
@@ -149,6 +149,13 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
             onBack = { navController.popBackStack() },
             onPlayNext = { next ->
                 navController.navigate(next) { popUpTo<VodPlayerRoute> { inclusive = true } }
+            },
+            // Multiview replaces the single player (and vice versa) so streams are never doubled up.
+            onOpenMultiview = { route ->
+                navController.navigate(route) { popUpTo<PlayerRoute> { inclusive = true } }
+            },
+            onOpenChannel = { route ->
+                navController.navigate(route) { popUpTo<MultiviewRoute> { inclusive = true } }
             },
         )
     }

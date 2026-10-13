@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
@@ -73,7 +74,7 @@ import com.xfin.core.model.Channel
 import com.xfin.core.model.RefreshState
 
 @Composable
-internal fun PhoneLiveTv(state: LiveTvState, onSearch: () -> Unit) {
+internal fun PhoneLiveTv(state: LiveTvState, onSearch: () -> Unit, onOpenSettings: () -> Unit) {
     var searching by rememberSaveable { mutableStateOf(false) }
     val wide = windowWidthDp() >= 600
 
@@ -84,6 +85,7 @@ internal fun PhoneLiveTv(state: LiveTvState, onSearch: () -> Unit) {
             onQuery = state.onQuery,
             // Search opens the app-wide search, scoped to live TV.
             onToggleSearch = onSearch,
+            onOpenSettings = onOpenSettings,
         )
         val refresh = state.refresh
         AnimatedVisibility(refresh is RefreshState.Running) {
@@ -107,7 +109,13 @@ internal fun PhoneLiveTv(state: LiveTvState, onSearch: () -> Unit) {
 }
 
 @Composable
-private fun Header(searching: Boolean, query: String, onQuery: (String) -> Unit, onToggleSearch: () -> Unit) {
+private fun Header(
+    searching: Boolean,
+    query: String,
+    onQuery: (String) -> Unit,
+    onToggleSearch: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val focus = remember { FocusRequester() }
     Row(
         modifier = Modifier
@@ -142,6 +150,7 @@ private fun Header(searching: Boolean, query: String, onQuery: (String) -> Unit,
         IconButton(onClick = onToggleSearch) {
             Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search, if (searching) "Close search" else "Search")
         }
+        IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
     }
 }
 

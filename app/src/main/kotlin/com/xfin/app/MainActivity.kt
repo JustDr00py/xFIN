@@ -1,6 +1,9 @@
 package com.xfin.app
 
+import android.app.PictureInPictureParams
 import android.app.UiModeManager
+import android.os.Build
+import com.xfin.feature.player.PipHost
 import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,7 +23,16 @@ import com.xfin.core.designsystem.theme.XfinTheme
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), PipHost {
+
+    /** Set by the player on screen; used to enter PiP on Home before Android 12. */
+    override var pipParams: PictureInPictureParams? = null
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) pipParams?.let { runCatching { enterPictureInPictureMode(it) } }
+    }
+
 
     private val viewModel: MainViewModel by viewModels()
 
