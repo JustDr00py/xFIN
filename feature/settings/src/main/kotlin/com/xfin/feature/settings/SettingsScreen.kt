@@ -4,6 +4,8 @@ import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -208,7 +210,19 @@ private fun SourceItem(
                 tint = MaterialTheme.colorScheme.primary,
             )
         },
-        headlineContent = { Text(source.name, maxLines = 1) },
+        // Actions sit beside the name so the details below get the full width.
+        headlineContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(source.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (refreshing) {
+                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(20.dp).padding(2.dp))
+                } else if (source.type != SourceType.JELLYFIN) {
+                    IconButton(onClick = onRefresh) { Icon(Icons.Rounded.Refresh, "Refresh ${source.name}") }
+                }
+                IconButton(onClick = onEdit) { Icon(Icons.Rounded.Edit, "Edit ${source.name}") }
+                IconButton(onClick = onDelete) { Icon(Icons.Rounded.DeleteOutline, "Remove ${source.name}") }
+            }
+        },
         supportingContent = {
             Column {
                 val updated = source.lastRefreshedAt?.let {
@@ -230,17 +244,6 @@ private fun SourceItem(
                     source.lastError?.let { Text(it, color = MaterialTheme.colorScheme.error, maxLines = 2) }
                     GuideStatus(source, guideLoading, onEditGuide, onRefreshGuide)
                 }
-            }
-        },
-        trailingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (refreshing) {
-                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(20.dp).padding(2.dp))
-                } else if (source.type != SourceType.JELLYFIN) {
-                    IconButton(onClick = onRefresh) { Icon(Icons.Rounded.Refresh, "Refresh ${source.name}") }
-                }
-                IconButton(onClick = onEdit) { Icon(Icons.Rounded.Edit, "Edit ${source.name}") }
-                IconButton(onClick = onDelete) { Icon(Icons.Rounded.DeleteOutline, "Remove ${source.name}") }
             }
         },
         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -269,7 +272,7 @@ private fun GuideStatus(
         color = if (source.epg.error != null && loading == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 2,
     )
-    Row {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         if (source.type == SourceType.M3U || source.type == SourceType.XTREAM) {
             TextButton(onClick = onEdit, contentPadding = PaddingValues(horizontal = 0.dp)) {
                 Text(
@@ -278,12 +281,13 @@ private fun GuideStatus(
                         source.type == SourceType.XTREAM -> "Use another guide"
                         else -> "Add guide URL"
                     },
+                    maxLines = 1,
+                    softWrap = false,
                 )
             }
-            Spacer(Modifier.width(16.dp))
         }
         if (hasGuideUrl && loading == null) {
-            TextButton(onClick = onRefresh, contentPadding = PaddingValues(horizontal = 0.dp)) { Text("Update guide") }
+            TextButton(onClick = onRefresh, contentPadding = PaddingValues(horizontal = 0.dp)) { Text("Update guide", maxLines = 1, softWrap = false) }
         }
     }
 }
