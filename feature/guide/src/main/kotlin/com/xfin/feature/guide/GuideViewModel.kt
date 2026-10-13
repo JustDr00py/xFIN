@@ -14,6 +14,7 @@ import com.xfin.core.model.decodeChannelFilter
 import com.xfin.core.model.encode
 import com.xfin.data.sources.ChannelRepository
 import com.xfin.data.sources.EpgRepository
+import com.xfin.data.sources.LastFilter
 import com.xfin.data.sources.minuteTicks
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -46,14 +47,16 @@ class GuideViewModel @Inject constructor(
     private val savedState: SavedStateHandle,
     private val channels: ChannelRepository,
     private val epg: EpgRepository,
+    private val lastFilter: LastFilter,
 ) : ViewModel() {
 
     val now: StateFlow<Long> = minuteTicks().stateIn(viewModelScope, SharingStarted.Eagerly, System.currentTimeMillis())
 
     val window: GuideWindow = run {
         val halfHour = TimeUnit.MINUTES.toMillis(30)
-        val start = System.currentTimeMillis() / halfHour * halfHour - TimeUnit.HOURS.toMillis(2)
-        GuideWindow(start, start + TimeUnit.HOURS.toMillis(2) + TimeUnit.DAYS.toMillis(3))
+        // A day back (as much past as the guide keeps) so past programs can be watched via catch-up.
+        val now = System.currentTimeMillis() / halfHour * halfHour
+        GuideWindow(now - TimeUnit.DAYS.toMillis(1), now + TimeUnit.DAYS.toMillis(3))
     }
 
     private val _filter = MutableStateFlow(savedState.get<String>(KEY_FILTER)?.let(::decodeChannelFilter))
@@ -93,8 +96,11 @@ class GuideViewModel @Inject constructor(
     init {
         if (_filter.value == null) {
             viewModelScope.launch {
-                val hasFavorites = channels.observeHasFavorites().first()
-                if (_filter.value == null) select(if (hasFavorites) ChannelFilter.Favorites else ChannelFilter.All)
+                val restored = lastFilter.restore(SCREEN)
+                if (_filter.value == null) {
+                    _filter.value = restored
+                    savedState[KEY_FILTER] = restored.encode()
+                }
             }
         }
     }
@@ -102,6 +108,7 @@ class GuideViewModel @Inject constructor(
     fun select(filter: ChannelFilter) {
         _filter.value = filter
         savedState[KEY_FILTER] = filter.encode()
+        lastFilter.save(SCREEN, filter)
     }
 
     suspend fun programs(channel: Channel): List<Program> {
@@ -119,6 +126,7 @@ class GuideViewModel @Inject constructor(
 
     private companion object {
         const val KEY_FILTER = "filter"
+        const val SCREEN = "guide"
         const val CACHE_ROWS = 300
     }
 }

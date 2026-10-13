@@ -29,6 +29,7 @@ internal object XtreamParsing {
             expiresAt = info.long("exp_date")?.times(1000),
             maxConnections = info.int("max_connections"),
             activeConnections = info.int("active_cons"),
+            timezone = ((root as JsonObject)["server_info"] as? JsonObject)?.string("timezone")?.takeIf { it.isNotBlank() },
         )
     }
 

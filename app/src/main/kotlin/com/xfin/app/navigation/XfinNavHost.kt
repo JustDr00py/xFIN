@@ -127,6 +127,9 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
         guideScreen(
             onPlay = { id, filter -> navController.navigate(PlayerRoute(id, filter.encode())) },
             onOpenSettings = openSettings,
+            onPlayArchive = { id, filter, start, end, title ->
+                navController.navigate(PlayerRoute(id, filter.encode(), catchupStart = start, catchupEnd = end, catchupTitle = title))
+            },
             shell = shell,
         )
         settingsScreen(

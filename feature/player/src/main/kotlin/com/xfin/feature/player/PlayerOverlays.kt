@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
@@ -39,6 +38,12 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.Forward30
+import androidx.compose.material.icons.rounded.Replay30
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Check
@@ -100,7 +105,14 @@ internal fun ChannelOverlay(
     onTogglePlay: () -> Unit,
     onPip: () -> Unit,
     onMultiview: () -> Unit,
+    catchupPosition: Long? = null,
+    canStartOver: Boolean = false,
+    onStartOver: () -> Unit = {},
+    onSeek: (Long) -> Unit = {},
+    onSkip: (Long) -> Unit = {},
+    onGoLive: () -> Unit = {},
 ) {
+    val inArchive = ui.catchup != null
     AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
         Box(
             Modifier
@@ -150,19 +162,31 @@ internal fun ChannelOverlay(
                         ControlPill(
                             playing = playback.playing,
                             favorite = ui.channel?.isFavorite == true,
+                            inArchive = inArchive,
+                            canStartOver = canStartOver,
                             onTogglePlay = onTogglePlay,
                             onFavorite = onFavorite,
                             onOptions = onOptions,
                             onMultiview = onMultiview,
+                            onStartOver = onStartOver,
+                            onSkip = onSkip,
                             modifier = Modifier.padding(start = 16.dp),
                         )
                     }
                 }
                 Spacer(Modifier.height(14.dp))
-                Timeline(nowNext.takeIf { ui.channel != null }, now)
+                Timeline(
+                    nowNext = nowNext.takeIf { ui.channel != null },
+                    now = now,
+                    position = catchupPosition,
+                    seekable = inArchive || canStartOver,
+                    onSeek = onSeek,
+                    onGoLive = onGoLive,
+                )
                 if (isTv) {
                     Text(
-                        "▲▼ Change channel   ·   ◀ Channel guide   ·   OK Options   ·   0–9 Jump to number",
+                        if (inArchive) "◀◀ ▶▶ 30 seconds   ·   ▲▼ Change channel (goes live)   ·   OK Options"
+                        else "▲▼ Change channel   ·   ◀ Channel guide   ·   OK Options   ·   0–9 Jump to number",
                         style = MaterialTheme.typography.labelMedium,
                         color = Color.White.copy(alpha = 0.45f),
                         modifier = Modifier.padding(top = 8.dp),
@@ -233,25 +257,64 @@ private fun ChannelInfo(channel: Channel, ui: PlayerUiState, playback: LivePlaye
     }
 }
 
-/** Program progress with start time, LIVE, the current time and what's next. */
+/**
+ * Program progress with start time, LIVE (or CATCH-UP and the archive time), the current time and
+ * what's next. On channels with catch-up the bar is tappable: tap earlier to rewind.
+ */
 @Composable
-private fun Timeline(nowNext: NowNext?, now: Long) {
+private fun Timeline(
+    nowNext: NowNext?,
+    now: Long,
+    position: Long?,
+    seekable: Boolean,
+    onSeek: (Long) -> Unit,
+    onGoLive: () -> Unit,
+) {
     val program = nowNext?.now
-    ProgressTrack(
-        program?.progress(now) ?: 1f,
-        Modifier.fillMaxWidth(),
-        height = 5.dp,
-        color = Color.White.copy(alpha = 0.85f),
-        trackColor = Color.White.copy(alpha = 0.22f),
-    )
-    Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    val at = position ?: now
+    val seek = if (seekable && program != null) {
+        Modifier.pointerInput(program.start, program.end) {
+            detectTapGestures { offset ->
+                val fraction = (offset.x / size.width).coerceIn(0f, 1f)
+                onSeek(program.start + ((program.end - program.start) * fraction).toLong())
+            }
+        }
+    } else {
+        Modifier
+    }
+    Box(seek.fillMaxWidth().padding(vertical = 8.dp)) {
+        ProgressTrack(
+            program?.progress(at) ?: 1f,
+            Modifier.fillMaxWidth(),
+            height = 5.dp,
+            color = Color.White.copy(alpha = 0.85f),
+            trackColor = Color.White.copy(alpha = 0.22f),
+        )
+    }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(program?.let { formatTime(it.start) }.orEmpty(), style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.8f))
         Spacer(Modifier.weight(1f))
-        Box(Modifier.size(9.dp).background(XfinColors.Live, CircleShape))
-        Spacer(Modifier.width(6.dp))
-        Text("LIVE", style = MaterialTheme.typography.labelLarge, color = XfinColors.Live)
-        Spacer(Modifier.width(14.dp))
-        Text(formatTime(now), style = MaterialTheme.typography.labelLarge, color = Color.White)
+        if (position != null) {
+            Tag("CATCH-UP")
+            Spacer(Modifier.width(10.dp))
+            Text(formatTime(position), style = MaterialTheme.typography.labelLarge, color = Color.White)
+            Spacer(Modifier.width(10.dp))
+            Row(
+                Modifier.clip(CircleShape).clickable(onClick = onGoLive).border(1.dp, XfinColors.Live, CircleShape)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(8.dp).background(XfinColors.Live, CircleShape))
+                Spacer(Modifier.width(6.dp))
+                Text("Go live", style = MaterialTheme.typography.labelLarge, color = Color.White)
+            }
+        } else {
+            Box(Modifier.size(9.dp).background(XfinColors.Live, CircleShape))
+            Spacer(Modifier.width(6.dp))
+            Text("LIVE", style = MaterialTheme.typography.labelLarge, color = XfinColors.Live)
+            Spacer(Modifier.width(14.dp))
+            Text(formatTime(now), style = MaterialTheme.typography.labelLarge, color = Color.White)
+        }
         nowNext?.next?.let { next ->
             Spacer(Modifier.width(14.dp))
             Text(
@@ -270,10 +333,14 @@ private fun Timeline(nowNext: NowNext?, now: Long) {
 private fun ControlPill(
     playing: Boolean,
     favorite: Boolean,
+    inArchive: Boolean,
+    canStartOver: Boolean,
     onTogglePlay: () -> Unit,
     onFavorite: () -> Unit,
     onOptions: () -> Unit,
     onMultiview: () -> Unit,
+    onStartOver: () -> Unit,
+    onSkip: (Long) -> Unit,
     modifier: Modifier,
 ) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -282,6 +349,12 @@ private fun ControlPill(
             Modifier.clip(CircleShape).background(Color(0x66303540)).padding(horizontal = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (inArchive) {
+                IconButton(onClick = { onSkip(-30_000) }) { Icon(Icons.Rounded.Replay30, "Back 30 seconds", tint = Color.White) }
+                IconButton(onClick = { onSkip(30_000) }) { Icon(Icons.Rounded.Forward30, "Forward 30 seconds", tint = Color.White) }
+            } else if (canStartOver) {
+                IconButton(onClick = onStartOver) { Icon(Icons.Rounded.RestartAlt, "Start over", tint = Color.White) }
+            }
             IconButton(onClick = onFavorite) {
                 Icon(
                     if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
@@ -290,8 +363,7 @@ private fun ControlPill(
                 )
             }
             IconButton(onClick = onMultiview) { Icon(Icons.Rounded.GridView, "Multiview", tint = Color.White) }
-            IconButton(onClick = onOptions) { Icon(Icons.Rounded.ClosedCaption, "Subtitles", tint = Color.White) }
-            IconButton(onClick = onOptions) { Icon(Icons.Rounded.GraphicEq, "Audio", tint = Color.White) }
+            IconButton(onClick = onOptions) { Icon(Icons.Rounded.ClosedCaption, "Audio and subtitles", tint = Color.White) }
         }
     }
 }

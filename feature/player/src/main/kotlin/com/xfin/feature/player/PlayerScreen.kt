@@ -74,6 +74,7 @@ internal fun PlayerScreen(
     val nowNext by viewModel.nowNext.collectAsStateWithLifecycle()
     val now by viewModel.now.collectAsStateWithLifecycle()
     val guideVersion by viewModel.guideVersion.collectAsStateWithLifecycle()
+    val catchupPosition by viewModel.catchupPosition.collectAsStateWithLifecycle()
     val miniGuide = viewModel.miniGuide.collectAsLazyPagingItems()
     val player = viewModel.livePlayer.player
     val isTv = LocalIsTv.current
@@ -93,7 +94,8 @@ internal fun PlayerScreen(
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.pause() }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
         if (!player.isPlaying && player.currentMediaItem != null) {
-            player.seekToDefaultPosition()
+            // Live jumps back to now; an archive resumes where it was.
+            if (viewModel.ui.value.catchup == null) player.seekToDefaultPosition()
             player.play()
         }
     }
@@ -143,6 +145,14 @@ internal fun PlayerScreen(
                     }
                     KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_GUIDE -> {
                         guideOpen = true; true
+                    }
+                    KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                        if (ui.catchup != null) viewModel.skip(-30_000) else if (viewModel.canStartOver()) viewModel.startOver()
+                        poke(); true
+                    }
+                    KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                        if (ui.catchup != null) viewModel.skip(30_000)
+                        poke(); true
                     }
                     in KeyEvent.KEYCODE_0..KeyEvent.KEYCODE_9 -> {
                         viewModel.digit(code - KeyEvent.KEYCODE_0); poke(); true
@@ -205,6 +215,12 @@ internal fun PlayerScreen(
             onTogglePlay = { viewModel.livePlayer.togglePlay(); poke() },
             onPip = enterPip,
             onMultiview = { ui.channel?.let { onOpenMultiview(MultiviewRoute(it.id, viewModel.filterKey)) } },
+            catchupPosition = catchupPosition,
+            canStartOver = remember(nowNext, ui.channel, ui.catchup) { viewModel.canStartOver() },
+            onStartOver = { viewModel.startOver(); poke() },
+            onSeek = { viewModel.seekTo(it); poke() },
+            onSkip = { viewModel.skip(it); poke() },
+            onGoLive = { viewModel.goLive(); poke() },
         )
 
         val error = ui.resolveError ?: playback.error

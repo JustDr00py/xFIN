@@ -6,7 +6,14 @@ import kotlinx.serialization.Serializable
 
 /** [filter] is an encoded ChannelFilter defining the zapping lineup. */
 @Serializable
-data class PlayerRoute(val channelId: Long, val filter: String)
+data class PlayerRoute(
+    val channelId: Long,
+    val filter: String,
+    /** When set, start in catch-up: the archive of [catchupStart]..[catchupEnd] (epoch ms). */
+    val catchupStart: Long = 0,
+    val catchupEnd: Long = 0,
+    val catchupTitle: String? = null,
+)
 
 /** Movie or episode playback from a library source, starting at [startMs]. */
 @Serializable

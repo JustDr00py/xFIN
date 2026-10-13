@@ -13,7 +13,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Replay
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,9 +45,12 @@ internal fun ProgramDetailsDialog(
     selection: ProgramSelection,
     now: Long,
     onWatch: () -> Unit,
+    onWatchFromStart: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val program = selection.program
+    val archived = program != null && selection.channel.catchup?.covers(program.start, now) == true
+    val past = program != null && program.end <= now
     val focus = remember { FocusRequester() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
@@ -95,11 +104,41 @@ internal fun ProgramDetailsDialog(
                     Text("No program information", style = MaterialTheme.typography.titleMedium)
                 }
                 Spacer(Modifier.height(24.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                if (past && !archived) {
+                    Text(
+                        if (selection.channel.catchup == null) "This channel has no catch-up, so past programs can't be replayed."
+                        else "This is older than the channel's ${selection.channel.catchup?.days}-day archive.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
+                }
+                FlowRow(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
                     TextButton(onClick = onDismiss) { Text("Close") }
-                    Spacer(Modifier.width(8.dp))
-                    Button(onClick = onWatch, modifier = Modifier.focusRequester(focus)) {
-                        Text("Watch ${selection.channel.name}", maxLines = 1)
+                    if (archived) {
+                        if (past) {
+                            TextButton(onClick = onWatch) { Text("Watch live", maxLines = 1) }
+                            Button(onClick = onWatchFromStart, modifier = Modifier.focusRequester(focus)) {
+                                Icon(Icons.Rounded.Replay, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Watch from start", maxLines = 1)
+                            }
+                        } else {
+                            OutlinedButton(onClick = onWatchFromStart) {
+                                Icon(Icons.Rounded.RestartAlt, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Start over", maxLines = 1)
+                            }
+                            Button(onClick = onWatch, modifier = Modifier.focusRequester(focus)) { Text("Watch live", maxLines = 1) }
+                        }
+                    } else {
+                        Button(onClick = onWatch, modifier = Modifier.focusRequester(focus)) {
+                            Text("Watch ${selection.channel.name}", maxLines = 1)
+                        }
                     }
                 }
             }

@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -51,7 +52,12 @@ data class PlayerUiState(
     val hasMiniGuide: Boolean = false,
     /** Name of the playlist/provider the channel comes from. */
     val sourceName: String? = null,
+    /** Set while watching the archive instead of live. */
+    val catchup: CatchupPlayback? = null,
 )
+
+/** Archive playback of [start]..[end]; the current stream starts at [playFrom] (whole minutes). */
+data class CatchupPlayback(val title: String?, val start: Long, val end: Long, val playFrom: Long)
 
 @OptIn(UnstableApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @HiltViewModel
@@ -83,7 +89,13 @@ class PlayerViewModel @Inject constructor(
     private var numberJob: Job? = null
     private var showJob: Job? = null
 
-    private val _ui = MutableStateFlow(PlayerUiState())
+    private val _ui = MutableStateFlow(
+        PlayerUiState(
+            catchup = route.catchupStart.takeIf { it > 0 }?.let {
+                CatchupPlayback(route.catchupTitle, it, route.catchupEnd, floorMinute(it))
+            },
+        ),
+    )
     val ui: StateFlow<PlayerUiState> = _ui.asStateFlow()
     val playback: StateFlow<LivePlayerState> = livePlayer.state
 
@@ -92,11 +104,20 @@ class PlayerViewModel @Inject constructor(
     val guideVersion: StateFlow<Int> = epg.observeGuideVersion()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    /** Now/next for the channel on screen, refreshed each minute. */
+    /** Where in the archive playback is (epoch ms), or null when live. Ticks twice a second. */
+    val catchupPosition: StateFlow<Long?> = flow {
+        while (true) {
+            emit(_ui.value.catchup?.let { it.playFrom + livePlayer.positionMs })
+            delay(500)
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(1_000), null)
+
+    /** Now/next for the channel on screen at the time being watched (live or archive). */
     val nowNext: StateFlow<NowNext> = combine(
         _ui.map { it.channel }.distinctUntilChanged { a, b -> a?.id == b?.id },
         now,
-    ) { channel, time -> channel to time }
+        catchupPosition.map { it?.let(::floorMinute) }.distinctUntilChanged(),
+    ) { channel, time, archiveTime -> channel to (archiveTime ?: time) }
         .mapLatest { (channel, time) -> channel?.let { epg.nowNext(it, time) } ?: NowNext(null, null) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, NowNext(null, null))
 
@@ -121,11 +142,68 @@ class PlayerViewModel @Inject constructor(
             show(index, direction = 0)
             tune(delayMs = 0)
         }
+        // An archive that plays to its end continues live.
+        viewModelScope.launch {
+            livePlayer.state.map { it.ended }.distinctUntilChanged().collect { ended ->
+                if (ended && _ui.value.catchup != null) goLive()
+            }
+        }
+    }
+
+    // --- Catch-up ---
+
+    /** Whether the program airing now can be restarted from the archive. */
+    fun canStartOver(): Boolean {
+        val program = nowNext.value.now ?: return false
+        return _ui.value.catchup == null && _ui.value.channel?.catchup?.covers(program.start, System.currentTimeMillis()) == true
+    }
+
+    fun startOver() {
+        val program = nowNext.value.now ?: return
+        watchArchive(program.title, program.start, program.end, from = program.start)
+    }
+
+    /** Plays the archive from [time] (epoch ms) within the program on screen, live or archived. */
+    fun seekTo(time: Long) {
+        val now = System.currentTimeMillis()
+        val target = time.coerceAtMost(now - LIVE_EDGE_MS)
+        val current = _ui.value.catchup
+        if (current == null) {
+            val program = nowNext.value.now ?: return
+            if (_ui.value.channel?.catchup?.covers(program.start, now) != true) return
+            watchArchive(program.title, program.start, program.end, from = target.coerceAtLeast(program.start))
+            return
+        }
+        val offset = target - current.playFrom
+        val loaded = livePlayer.durationMs
+        if (livePlayer.isSeekable && loaded != null && offset in 0 until loaded) {
+            livePlayer.seekTo(offset)
+        } else {
+            _ui.update { it.copy(catchup = current.copy(playFrom = floorMinute(target.coerceAtLeast(current.start)))) }
+            tune(delayMs = SEEK_SETTLE_MS)
+        }
+    }
+
+    fun skip(deltaMs: Long) {
+        val position = catchupPosition.value ?: return
+        seekTo(position + deltaMs)
+    }
+
+    fun goLive() {
+        if (_ui.value.catchup == null) return
+        _ui.update { it.copy(catchup = null) }
+        tune(delayMs = 0)
+    }
+
+    private fun watchArchive(title: String?, start: Long, end: Long, from: Long) {
+        _ui.update { it.copy(catchup = CatchupPlayback(title, start, end, floorMinute(from))) }
+        tune(delayMs = 0)
     }
 
     /** Moves through the lineup; playback starts once the user stops pressing, saving connections. */
     fun zap(delta: Int) {
         if (lineup.size < 2) return
+        _ui.update { it.copy(catchup = null) }
         show((_ui.value.position + delta).mod(lineup.size), direction = delta.coerceIn(-1, 1))
         tune(delayMs = ZAP_SETTLE_MS)
     }
@@ -171,6 +249,7 @@ class PlayerViewModel @Inject constructor(
 
     fun tuneTo(index: Int) {
         if (index !in lineup.indices || index == _ui.value.position) return
+        _ui.update { it.copy(catchup = null) }
         show(index, direction = if (index > _ui.value.position) 1 else -1)
         tune(delayMs = 0)
     }
@@ -226,8 +305,13 @@ class PlayerViewModel @Inject constructor(
             val id = lineup.getOrNull(_ui.value.position) ?: return@launch
             val channel = load(id) ?: return@launch
             try {
-                livePlayer.play(channels.resolveStream(channel.id))
-                channels.recordWatched(channel)
+                val archive = _ui.value.catchup
+                if (archive != null) {
+                    livePlayer.play(channels.resolveCatchup(channel.id, archive.playFrom, archive.end))
+                } else {
+                    livePlayer.play(channels.resolveStream(channel.id))
+                    channels.recordWatched(channel)
+                }
             } catch (e: Exception) {
                 _ui.update { it.copy(resolveError = e.message ?: "Couldn't open this channel") }
             }
@@ -242,5 +326,10 @@ class PlayerViewModel @Inject constructor(
         const val ZAP_SETTLE_MS = 450L
         const val NUMBER_COMMIT_MS = 1_500L
         const val PREFETCH = 3
+        const val SEEK_SETTLE_MS = 300L
+        /** Archives lag live a little; don't seek closer than this to now. */
+        const val LIVE_EDGE_MS = 90_000L
     }
 }
+
+private fun floorMinute(time: Long) = time / 60_000 * 60_000

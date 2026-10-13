@@ -20,6 +20,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.io.IOException
+import com.xfin.data.iptv.catchup.CatchupUrls
+import com.xfin.core.database.entity.SourceEntity
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,7 +34,10 @@ class ChannelRepository @Inject internal constructor(
     private val channelDao: ChannelDao,
     private val sourceDao: SourceDao,
     private val credentials: SourceCredentials,
+    private val xtream: XtreamClient,
 ) {
+    private val providerZones = java.util.concurrent.ConcurrentHashMap<Long, ZoneId>()
+
     /** Paged channels for browsing; a non-blank [query] searches every visible channel. */
     fun pagedChannels(filter: ChannelFilter, query: String = ""): Flow<PagingData<Channel>> {
         val match = ftsQuery(query)
@@ -103,6 +111,35 @@ class ChannelRepository @Inject internal constructor(
 
     suspend fun recordWatched(channel: Channel) {
         channelDao.recordWatched(HistoryEntity(channel.sourceId, channel.key, System.currentTimeMillis()))
+    }
+
+    /**
+     * The archive stream for [startMs]..[endMs] on a channel with catch-up. Throws with a readable
+     * message when the channel has no archive or the time is outside it.
+     */
+    suspend fun resolveCatchup(channelId: Long, startMs: Long, endMs: Long): PlayableStream {
+        val row = channelDao.get(channelId)?.channel ?: throw IOException("Channel no longer exists")
+        val source = sourceDao.get(row.sourceId) ?: throw IOException("Source no longer exists")
+        val mode = row.catchupMode ?: throw IOException("This channel has no catch-up")
+        val now = System.currentTimeMillis()
+        if (row.catchupDays > 0 && startMs < now - TimeUnit.DAYS.toMillis(row.catchupDays.toLong())) {
+            throw IOException("That's older than this channel's ${row.catchupDays}-day archive")
+        }
+        val end = endMs.coerceAtMost(now)
+        val url = when (SourceType.valueOf(source.type)) {
+            SourceType.XTREAM -> {
+                val creds = credentials.xtream(source)
+                CatchupUrls.xtream(creds.baseUrl, creds.username, creds.password, row.stream, startMs, end, providerZone(source))
+            }
+            else -> CatchupUrls.m3u(mode, row.catchupSource, row.stream, startMs, end, now)
+                ?: throw IOException("This playlist's catch-up format (\"$mode\") isn't supported")
+        }
+        return PlayableStream(url = url, userAgent = row.userAgent ?: source.userAgent, referrer = row.referrer)
+    }
+
+    /** Xtream archives are addressed in the provider's local time; asked once per source. */
+    private suspend fun providerZone(source: SourceEntity): ZoneId = providerZones.getOrPut(source.id) {
+        runCatching { xtream.authenticate(credentials.xtream(source)).timezone?.let(ZoneId::of) }.getOrNull() ?: ZoneOffset.UTC
     }
 
     suspend fun resolveStream(channelId: Long): PlayableStream {

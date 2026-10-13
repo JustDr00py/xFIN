@@ -107,4 +107,12 @@ class ChannelNameKeyTest {
         assertEquals("rtlh2", channelNameKey("RTL h 2"))
         assertEquals("caféfr", channelNameKey("Café FR"))
     }
+
+    @Test
+    fun episodeLabelsDropProgramIds() {
+        assertEquals(null, XmltvParser.episodeLabel("725758199"))
+        assertEquals(null, XmltvParser.episodeLabel("EP012345670012"))
+        assertEquals("E12", XmltvParser.episodeLabel("12"))
+        assertEquals("S2 E5", XmltvParser.episodeLabel("S2 E5"))
+    }
 }

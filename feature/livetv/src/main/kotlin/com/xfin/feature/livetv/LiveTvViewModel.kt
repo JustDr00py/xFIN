@@ -12,6 +12,7 @@ import com.xfin.core.model.decodeChannelFilter
 import com.xfin.core.model.encode
 import com.xfin.data.sources.ChannelRepository
 import com.xfin.data.sources.EpgRepository
+import com.xfin.data.sources.LastFilter
 import com.xfin.data.sources.SourceRepository
 import com.xfin.core.model.ProgramSlot
 import com.xfin.data.sources.minuteTicks
@@ -41,6 +42,7 @@ class LiveTvViewModel @Inject constructor(
     private val channels: ChannelRepository,
     sources: SourceRepository,
     private val epg: EpgRepository,
+    private val lastFilter: LastFilter,
 ) : ViewModel() {
 
     private val _filter = MutableStateFlow(savedState.get<String>(KEY_FILTER)?.let(::decodeChannelFilter))
@@ -86,8 +88,11 @@ class LiveTvViewModel @Inject constructor(
     init {
         if (_filter.value == null) {
             viewModelScope.launch {
-                val hasFavorites = channels.observeHasFavorites().first()
-                if (_filter.value == null) select(if (hasFavorites) ChannelFilter.Favorites else ChannelFilter.All)
+                val restored = lastFilter.restore(SCREEN)
+                if (_filter.value == null) {
+                    _filter.value = restored
+                    savedState[KEY_FILTER] = restored.encode()
+                }
             }
         }
     }
@@ -95,6 +100,7 @@ class LiveTvViewModel @Inject constructor(
     fun select(filter: ChannelFilter) {
         _filter.value = filter
         savedState[KEY_FILTER] = filter.encode()
+        lastFilter.save(SCREEN, filter)
     }
 
     fun search(query: String) {
@@ -111,5 +117,6 @@ class LiveTvViewModel @Inject constructor(
 
     private companion object {
         const val KEY_FILTER = "filter"
+        const val SCREEN = "livetv"
     }
 }

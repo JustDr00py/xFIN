@@ -85,9 +85,11 @@ object XmltvParser {
                 "episode-num" -> {
                     val system = parser.getAttributeValue(null, "system")
                     val text = readText(parser)
-                    if (system == "onscreen" || episode == null) {
-                        episode = if (system == "xmltv_ns") formatXmltvNs(text) ?: episode else text
+                    val label = when (system) {
+                        "xmltv_ns" -> formatXmltvNs(text)
+                        else -> episodeLabel(text)
                     }
+                    if (label != null && (system == "onscreen" || episode == null)) episode = label
                 }
                 "icon" -> {
                     icon = parser.getAttributeValue(null, "src")
@@ -144,6 +146,20 @@ object XmltvParser {
                 XmlPullParser.END_TAG -> depth--
                 XmlPullParser.END_DOCUMENT -> return
             }
+        }
+    }
+
+    /**
+     * Keeps human-readable episode numbers ("S2 E5", "Ep 3", "12" -> "E12") and drops the
+     * programme ids some guides put there instead (e.g. "725758199", "EP012345670012").
+     */
+    internal fun episodeLabel(text: String): String? {
+        val t = text.trim()
+        return when {
+            t.isEmpty() -> null
+            t.all { it.isDigit() } -> if (t.length <= 3) "E${t.trimStart('0').ifEmpty { "0" }}" else null
+            t.length > 20 || t.count { it.isDigit() } > 6 -> null
+            else -> t
         }
     }
 

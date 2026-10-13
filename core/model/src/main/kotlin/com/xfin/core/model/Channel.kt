@@ -30,7 +30,11 @@ data class Catchup(
     val mode: String,
     val source: String?,
     val days: Int,
-)
+) {
+    /** Whether a program that started at [start] can be played from the archive at [now]. */
+    fun covers(start: Long, now: Long): Boolean =
+        start < now && (days <= 0 || start >= now - days * 86_400_000L)
+}
 
 data class ChannelGroup(
     val name: String,

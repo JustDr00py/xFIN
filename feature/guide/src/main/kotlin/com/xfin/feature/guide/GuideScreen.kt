@@ -55,6 +55,7 @@ import java.util.concurrent.TimeUnit
 internal fun GuideScreen(
     onPlay: (channelId: Long, filter: ChannelFilter) -> Unit,
     onOpenSettings: () -> Unit,
+    onPlayArchive: (channelId: Long, filter: ChannelFilter, start: Long, end: Long, title: String) -> Unit,
     viewModel: GuideViewModel = hiltViewModel(),
 ) {
     val isTv = LocalIsTv.current
@@ -164,6 +165,10 @@ internal fun GuideScreen(
             onWatch = {
                 viewModel.dismiss()
                 onPlay(sel.channel.id, playFilter)
+            },
+            onWatchFromStart = {
+                viewModel.dismiss()
+                sel.program?.let { onPlayArchive(sel.channel.id, playFilter, it.start, it.end, it.title) }
             },
             onDismiss = viewModel::dismiss,
         )

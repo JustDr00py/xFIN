@@ -32,6 +32,8 @@ data class XtreamAccount(
     val expiresAt: Long?,
     val maxConnections: Int?,
     val activeConnections: Int?,
+    /** The provider's server timezone (e.g. "Europe/London"); archive start times use it. */
+    val timezone: String? = null,
 )
 
 data class XtreamCategory(val id: String, val name: String)

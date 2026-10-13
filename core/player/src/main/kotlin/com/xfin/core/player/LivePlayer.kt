@@ -54,6 +54,8 @@ data class LivePlayerState(
     val audioChannels: Int = 0,
     val audioLanguage: String? = null,
     val videoCodec: String? = null,
+    /** A finite stream (catch-up archive) played to its end. */
+    val ended: Boolean = false,
 )
 
 /**
@@ -140,6 +142,17 @@ class LivePlayer @Inject constructor(
         start(stream)
     }
 
+    /** Position within the current stream; for archives, time since the archive's start. */
+    val positionMs: Long get() = player.currentPosition.coerceAtLeast(0)
+
+    /** Length of the current stream when known (archives), else null. */
+    val durationMs: Long? get() = player.duration.takeIf { it != C.TIME_UNSET && it > 0 }
+
+    /** Whether [seekTo] works in place; archives without byte-range support must be re-requested. */
+    val isSeekable: Boolean get() = player.isCurrentMediaItemSeekable && durationMs != null
+
+    fun seekTo(positionMs: Long) = player.seekTo(positionMs)
+
     fun retry() {
         current?.let {
             retries = 0
@@ -217,7 +230,7 @@ class LivePlayer @Inject constructor(
 
     private inner class Listener : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
-            _state.update { it.copy(buffering = playbackState == Player.STATE_BUFFERING) }
+            _state.update { it.copy(buffering = playbackState == Player.STATE_BUFFERING, ended = playbackState == Player.STATE_ENDED) }
             if (playbackState == Player.STATE_READY) retries = 0
         }
 
