@@ -57,6 +57,7 @@ import com.xfin.core.designsystem.component.ChannelLogo
 import com.xfin.core.designsystem.component.formatTime
 import com.xfin.core.designsystem.component.shimmer
 import com.xfin.core.designsystem.theme.XfinColors
+import com.xfin.core.model.Catchup
 import com.xfin.core.model.Channel
 import com.xfin.core.model.Program
 import androidx.compose.runtime.DisposableEffect
@@ -182,6 +183,9 @@ private class TvGuideFocus(initialTime: Long) {
     var cellStart = 0L
     var cellEnd = 0L
 
+    /** The focused row's archive, if any: Left may only walk into the past where it can be played. */
+    var catchup: Catchup? = null
+
     /** Set while up/down moves focus, so the time and horizontal position stay put. */
     var verticalMove = false
     val programRequesters = HashMap<Int, FocusRequester>()
@@ -268,6 +272,19 @@ fun GuideGrid(
         return true
     }
 
+    /**
+     * Left from the program on now (or the oldest playable one) goes back to the row; past programs
+     * are only visited on channels whose catch-up archive can play them.
+     */
+    fun leftToRow(): Boolean {
+        val focus = tv ?: return false
+        if (focus.inChannelColumn || focus.cellStart > now) return false
+        val previousPlayable = focus.catchup?.covers(focus.cellStart - 1, now) == true
+        if (previousPlayable) return false
+        focus.channelRequesters[focus.row]?.let { runCatching { it.requestFocus() } }
+        return true
+    }
+
     Column(modifier.scrollable(
             state = timeline.scrollable,
             orientation = Orientation.Horizontal,
@@ -304,7 +321,7 @@ fun GuideGrid(
                                 Key.DirectionDown -> moveRow(+1)
                                 Key.DirectionUp -> moveRow(-1)
                                 Key.DirectionRight -> pageWithinProgram(forward = true)
-                                Key.DirectionLeft -> pageWithinProgram(forward = false)
+                                Key.DirectionLeft -> pageWithinProgram(forward = false) || leftToRow()
                                 else -> false
                             }
                         }
@@ -375,6 +392,7 @@ fun GuideGrid(
                                         tv.inChannelColumn = false
                                         tv.cellStart = cell.start
                                         tv.cellEnd = cell.end
+                                        tv.catchup = channel.catchup
                                         if (!tv.verticalMove) {
                                             // Left/right picks a new time: the visible part of this program.
                                             tv.focusTime = timeline.timeAt(timeline.offset).coerceIn(cell.start, cell.end - 1)
