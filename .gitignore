@@ -8,3 +8,8 @@ build/
 /captures
 .externalNativeBuild
 .cxx
+
+# Release signing (passwords); the keystore itself lives outside the project.
+keystore.properties
+*.jks
+*.keystore

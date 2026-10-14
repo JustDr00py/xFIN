@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("xfin.android.application")
     id("xfin.android.compose")
@@ -5,8 +7,25 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// Release signing comes from keystore.properties in the project root (git-ignored):
+// storeFile, storePassword, keyAlias, keyPassword. Without it, release builds are left unsigned.
+val keystoreProperties = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use(::load)
+}
+
 android {
     namespace = "com.xfin.app"
+
+    signingConfigs {
+        if (keystoreProperties.containsKey("storeFile")) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.xfin.app"
@@ -22,6 +41,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
         }
         // Release code (R8, not debuggable) signed with the debug key: for measuring real-world
         // performance on a device. Compose is several times slower in debuggable builds.
