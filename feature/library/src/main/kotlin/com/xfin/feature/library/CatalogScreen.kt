@@ -114,7 +114,7 @@ internal fun CatalogScreen(
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     val items = viewModel.items.collectAsLazyPagingItems()
     val isTv = LocalIsTv.current
-    val title = if (kind == MediaKind.SERIES) "Shows" else "Movies"
+    val title = if (kind == MediaKind.SERIES) "Series" else "Movies"
 
     val list = servers ?: return
     if (list.isEmpty()) {
@@ -157,7 +157,8 @@ internal fun CatalogScreen(
             }
         }
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(if (isTv) 170.dp else 112.dp),
+            // TV: ~6 posters a row, so a whole row and its titles fit under the header.
+            columns = GridCells.Adaptive(if (isTv) 124.dp else 112.dp),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp),
             horizontalArrangement = Arrangement.spacedBy(if (isTv) 24.dp else 12.dp),
             verticalArrangement = Arrangement.spacedBy(if (isTv) 24.dp else 16.dp),

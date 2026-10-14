@@ -51,6 +51,9 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.xfin.core.designsystem.component.LocalIsTv
 import com.xfin.core.model.MediaItem
+import com.xfin.core.model.SourceType
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -58,7 +61,9 @@ private const val AUTO_ADVANCE_MS = 8_000L
 
 /** Picks the banner's items: recently added titles with artwork, mixed across libraries. */
 internal fun heroItems(servers: List<ServerHome>, max: Int = 6): List<MediaItem> {
-    val rows = servers.flatMap { home ->
+    // Jellyfin libraries have proper artwork and titles; Xtream catalogues are the fallback.
+    val jellyfin = servers.filter { it.server.type == SourceType.JELLYFIN && it.rows.isNotEmpty() }
+    val rows = jellyfin.ifEmpty { servers }.flatMap { home ->
         home.rows.filter { it.key.startsWith("latest-") }.map { row -> row.items.filter { it.backdropUrl != null } }
     }
     val picked = ArrayList<MediaItem>(max)
@@ -81,6 +86,7 @@ internal fun HomeHero(
     height: Dp,
     onOpenItem: (MediaItem) -> Unit,
     header: @Composable () -> Unit,
+    focusRequester: FocusRequester = remember { FocusRequester() },
 ) {
     val pager = rememberPagerState { items.size }
     val scope = rememberCoroutineScope()
@@ -94,6 +100,8 @@ internal fun HomeHero(
         delay(AUTO_ADVANCE_MS)
         if (!pager.isScrollInProgress) pager.animateScrollToPage((pager.settledPage + 1) % items.size)
     }
+    // TV: Home starts on More info, like UHF.
+    if (isTv) LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
     val buttonInteraction = remember { MutableInteractionSource() }
     val buttonFocused by buttonInteraction.collectIsFocusedAsState()
 
@@ -151,6 +159,7 @@ internal fun HomeHero(
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                 interactionSource = buttonInteraction,
                 modifier = Modifier
+                    .focusRequester(focusRequester)
                     .then(if (isTv) Modifier else Modifier.fillMaxWidth(0.7f))
                     // A white button needs a ring of its own to show focus on TV.
                     .then(if (buttonFocused) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape).padding(3.dp) else Modifier)

@@ -15,6 +15,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,8 +76,11 @@ internal fun RecentChannelsSection(
     gutter: Dp,
     onPlayChannel: (Long) -> Unit,
     onViewAll: () -> Unit,
+    /** TV: where Up from the first row goes (the banner's More info). */
+    upTarget: FocusRequester? = null,
     viewModel: RecentChannelsViewModel = hiltViewModel(),
 ) {
+    val viewAll = remember { FocusRequester() }
     val channels = viewModel.recent.collectAsLazyPagingItems()
     val now by viewModel.now.collectAsStateWithLifecycle()
     if (channels.itemCount == 0) return
@@ -83,7 +90,7 @@ internal fun RecentChannelsSection(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = gutter, end = gutter - 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("TV Guide", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            TextButton(onClick = onViewAll) { Text("View all") }
+            TextButton(onClick = onViewAll, modifier = Modifier.focusRequester(viewAll)) { Text("View all") }
         }
         for (i in 0 until minOf(ROWS, channels.itemCount)) {
             val channel = channels[i] ?: continue
@@ -94,7 +101,13 @@ internal fun RecentChannelsSection(
                 now = now,
                 height = rowHeight,
                 onClick = { onPlayChannel(channel.id) },
-                modifier = Modifier.padding(horizontal = gutter),
+                modifier = Modifier
+                    .padding(horizontal = gutter)
+                    // TV: Up from the first row returns to the banner; Right reaches View all.
+                    .focusProperties {
+                        if (i == 0 && upTarget != null) up = upTarget
+                        right = viewAll
+                    },
             )
         }
     }

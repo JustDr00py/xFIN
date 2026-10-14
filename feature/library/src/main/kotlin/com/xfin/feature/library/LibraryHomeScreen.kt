@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -78,6 +79,7 @@ internal fun LibraryHomeScreen(
     val gutter = if (isTv) 40.dp else 20.dp
 
     val hero = remember(servers) { heroItems(servers) }
+    val heroFocus = remember { FocusRequester() }
     val header: @Composable () -> Unit = {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().padding(start = gutter, end = 8.dp, top = if (isTv) 24.dp else 12.dp),
@@ -100,10 +102,15 @@ internal fun LibraryHomeScreen(
             if (hero.isEmpty()) {
                 header()
             } else {
-                HomeHero(hero, heroHeight, onOpenItem = { onOpenItem(it.sourceId, it.id) }, header = header)
+                HomeHero(hero, heroHeight, onOpenItem = { onOpenItem(it.sourceId, it.id) }, header = header, focusRequester = heroFocus)
             }
         }
-        item(key = "tv-guide") { RecentChannelsSection(gutter, onPlayChannel = onPlayChannel, onViewAll = onOpenRecentGuide) }
+        item(key = "tv-guide") { RecentChannelsSection(
+                gutter,
+                onPlayChannel = onPlayChannel,
+                onViewAll = onOpenRecentGuide,
+                upTarget = if (hero.isEmpty()) null else heroFocus,
+            ) }
         servers.forEach { home ->
             if (servers.size > 1) {
                 item(key = "server-${home.server.id}") {
