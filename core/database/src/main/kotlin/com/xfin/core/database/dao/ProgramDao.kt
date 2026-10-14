@@ -18,6 +18,14 @@ interface ProgramDao {
     )
     suspend fun programs(sourceId: Long, channelId: String, from: Long, to: Long): List<ProgramEntity>
 
+    /** Programs of several guide channels of one source at once (the guide loads rows in batches). */
+    @Query(
+        """SELECT p.* FROM programs p $CURRENT
+        WHERE p.sourceId = :sourceId AND p.channelId IN (:channelIds) AND p.endAt > :from AND p.startAt < :to
+        ORDER BY p.channelId, p.startAt""",
+    )
+    suspend fun programsFor(sourceId: Long, channelIds: List<String>, from: Long, to: Long): List<ProgramEntity>
+
     @Query(
         """SELECT p.* FROM programs p $CURRENT
         WHERE p.sourceId = :sourceId AND p.channelId = :channelId AND p.endAt > :now

@@ -116,6 +116,25 @@ class GuideViewModel @Inject constructor(
         return epg.programs(channel, window.start, window.end).also { cache.put(channel.id, it) }
     }
 
+    /** Already-loaded programs, so a row scrolled into view can draw them in its first frame. */
+    fun cachedPrograms(channel: Channel): List<Program>? = cache.get(channel.id)
+
+    private val prefetching = HashSet<Long>()
+
+    /** Loads the rows around the visible ones in one query, ahead of scrolling. */
+    fun prefetch(rows: List<Channel>) {
+        val missing = rows.filter { cache.get(it.id) == null && it.id !in prefetching }
+        if (missing.isEmpty()) return
+        prefetching += missing.map { it.id }
+        viewModelScope.launch {
+            try {
+                epg.programsFor(missing, window.start, window.end).forEach { (id, programs) -> cache.put(id, programs) }
+            } finally {
+                prefetching -= missing.map { it.id }.toSet()
+            }
+        }
+    }
+
     fun open(channel: Channel, program: Program?) {
         _selection.value = ProgramSelection(channel, program)
     }

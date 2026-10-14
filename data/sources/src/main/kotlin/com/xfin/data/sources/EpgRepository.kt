@@ -63,6 +63,18 @@ class EpgRepository @Inject internal constructor(
         return programDao.programs(channel.sourceId, epgId, from, to).map { it.toModel() }
     }
 
+    /** Programs for many channels in one query per source, keyed by channel id. */
+    suspend fun programsFor(channels: List<Channel>, from: Long, to: Long): Map<Long, List<Program>> {
+        val result = HashMap<Long, List<Program>>(channels.size)
+        channels.filter { it.epgId == null }.forEach { result[it.id] = emptyList() }
+        channels.filter { it.epgId != null }.groupBy { it.sourceId }.forEach { (sourceId, group) ->
+            val byGuideId = programDao.programsFor(sourceId, group.mapNotNull { it.epgId }.distinct(), from, to)
+                .groupBy({ it.channelId }, { it.toModel() })
+            group.forEach { result[it.id] = byGuideId[it.epgId].orEmpty() }
+        }
+        return result
+    }
+
     suspend fun nowNext(channel: Channel, now: Long = System.currentTimeMillis()): NowNext {
         val epgId = channel.epgId ?: return NowNext(null, null)
         val rows = programDao.nowNext(channel.sourceId, epgId, now).map { it.toModel() }
