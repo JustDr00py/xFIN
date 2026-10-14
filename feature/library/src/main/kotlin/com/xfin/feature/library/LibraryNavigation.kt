@@ -33,6 +33,7 @@ fun NavGraphBuilder.libraryScreens(
     onSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     onPlayChannel: (channelId: Long) -> Unit,
+    onOpenRecentGuide: () -> Unit,
     onBack: () -> Unit,
     shell: @Composable (content: @Composable () -> Unit) -> Unit,
 ) {
@@ -45,6 +46,8 @@ fun NavGraphBuilder.libraryScreens(
                 onConnect = onConnect,
                 onSearch = onSearch,
                 onOpenSettings = onOpenSettings,
+                onPlayChannel = onPlayChannel,
+                onOpenRecentGuide = onOpenRecentGuide,
             )
         }
     }

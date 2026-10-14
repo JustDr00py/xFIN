@@ -50,6 +50,8 @@ internal fun LibraryHomeScreen(
     onConnect: () -> Unit,
     onSearch: () -> Unit,
     onOpenSettings: () -> Unit,
+    onPlayChannel: (Long) -> Unit = {},
+    onOpenRecentGuide: () -> Unit = {},
     viewModel: LibraryHomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -80,11 +82,12 @@ internal fun LibraryHomeScreen(
     ) {
         item {
             Row(Modifier.fillMaxWidth().padding(start = gutter, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Library", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+                Text("Home", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
                 IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
                 IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
             }
         }
+        item(key = "tv-guide") { RecentChannelsSection(gutter, onPlayChannel = onPlayChannel, onViewAll = onOpenRecentGuide) }
         servers.forEach { home ->
             if (servers.size > 1) {
                 item(key = "server-${home.server.id}") {

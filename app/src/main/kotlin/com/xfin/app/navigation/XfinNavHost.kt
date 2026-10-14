@@ -149,6 +149,7 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
             onConnect = { navController.navigate(AddJellyfinRoute) },
             onSearch = { navController.navigate(SearchRoute()) },
             onPlayChannel = { channelId -> navController.navigate(PlayerRoute(channelId, ChannelFilter.All.encode())) },
+            onOpenRecentGuide = { navController.navigate(GuideRoute(ChannelFilter.Recent.encode())) },
             onOpenSettings = openSettings,
             onBack = { navController.popBackStack() },
             shell = shell,
