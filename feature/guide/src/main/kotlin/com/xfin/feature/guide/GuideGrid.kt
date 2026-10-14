@@ -235,13 +235,19 @@ fun GuideGrid(
     // Starts from the saved row, so the rebuilt state can't overwrite it with row 0.
     val tv = if (isTv) remember { TvGuideFocus(now).also { it.row = savedRow } } else null
     var scrollJob by remember { mutableStateOf<Job?>(null) }
-    LaunchedEffect(listState) { snapshotFlow { listState.firstVisibleItemIndex }.collect { if (channels.itemCount > 0) savedFirst = it } }
+    // Not recorded until the saved position has been put back: after a rotation (the player
+    // turns phones to landscape) the list briefly shows row 0, which would overwrite it.
+    var restored by remember { mutableStateOf(false) }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex }.collect { if (restored && channels.itemCount > 0) savedFirst = it }
+    }
     if (tv != null) LaunchedEffect(tv) { snapshotFlow { tv.row }.collect { savedRow = it } }
 
     // Back to the first channel only when the category really changes, not on every return.
     LaunchedEffect(resetKey) {
         val key = resetKey?.toString()
         if (savedKey != null && savedKey != key) {
+            restored = true
             listState.scrollToItem(0)
             tv?.row = 0
             savedFirst = 0
@@ -465,14 +471,18 @@ fun GuideGrid(
                 val row = savedRow.coerceIn(0, channels.itemCount - 1)
                 tv.row = row
                 if (listState.firstVisibleItemIndex == 0 && row > TV_PIVOT_ROW) listState.scrollToItem(row - TV_PIVOT_ROW)
+                restored = true
                 kotlinx.coroutines.delay(250)
                 runCatching { (tv.channelRequesters[row] ?: tv.channelRequesters[listState.firstVisibleItemIndex])?.requestFocus() }
             }
         }
     } else {
         LaunchedEffect(channels.itemCount > 0) {
-            if (channels.itemCount > 0 && listState.firstVisibleItemIndex == 0 && savedFirst > 0) {
-                listState.scrollToItem(savedFirst.coerceAtMost(channels.itemCount - 1))
+            if (channels.itemCount > 0) {
+                if (listState.firstVisibleItemIndex == 0 && savedFirst > 0) {
+                    listState.scrollToItem(savedFirst.coerceAtMost(channels.itemCount - 1))
+                }
+                restored = true
             }
         }
     }
