@@ -79,6 +79,18 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.xfin.core.designsystem.component.rememberLogoTint
 import kotlinx.coroutines.Job
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -207,6 +219,8 @@ fun GuideGrid(
     modifier: Modifier = Modifier,
     cachedPrograms: (Channel) -> List<Program>? = { null },
     prefetch: (List<Channel>) -> Unit = {},
+    /** Long press on a channel (phone) or Menu on a channel row (TV). */
+    onToggleFavorite: (Channel) -> Unit = {},
     /** Changing this (e.g. the selected group) scrolls back to the first channel. */
     resetKey: Any? = null,
 ) {
@@ -329,6 +343,10 @@ fun GuideGrid(
                                 Key.DirectionUp -> moveRow(-1)
                                 Key.DirectionRight -> pageWithinProgram(forward = true)
                                 Key.DirectionLeft -> pageWithinProgram(forward = false) || leftToRow()
+                                Key.Menu -> {
+                                    channels.peek(tv.row)?.let(onToggleFavorite)
+                                    true
+                                }
                                 else -> false
                             }
                         }
@@ -367,6 +385,7 @@ fun GuideGrid(
                                 channel = channel,
                                 metrics = metrics,
                                 onClick = onChannelClick,
+                                onLongClick = onToggleFavorite,
                                 focused = rowFocused,
                                 modifier = if (tv == null) {
                                     Modifier
@@ -385,6 +404,9 @@ fun GuideGrid(
                             )
                             ProgramRow(
                                 channel = channel,
+                                tint = rememberLogoTint(channel.logoUrl),
+                                // Phones have no room for names beside the logos; the first card says it.
+                                channelLabel = if (metrics.showChannelNames) null else channel.name,
                                 timeline = timeline,
                                 isTv = isTv,
                                 now = now,
@@ -456,9 +478,11 @@ private fun ChannelCell(
     metrics: GuideMetrics,
     onClick: (Channel) -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (Channel) -> Unit = {},
     focused: Boolean = false,
 ) {
     val colors = MaterialTheme.colorScheme
+    val haptics = LocalHapticFeedback.current
     Row(
         modifier = modifier
             .width(metrics.channelColumnWidth)
@@ -467,15 +491,28 @@ private fun ChannelCell(
             .clip(MaterialTheme.shapes.small)
             .background(if (focused) colors.primaryContainer else colors.surfaceContainerLow)
             .then(if (focused) Modifier.border(2.dp, colors.primary, MaterialTheme.shapes.small) else Modifier)
-            .clickable(interactionSource = null, indication = if (focused) null else LocalIndication.current) { onClick(channel) }
+            .combinedClickable(
+                interactionSource = null,
+                indication = if (focused) null else LocalIndication.current,
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongClick(channel)
+                },
+                onClick = { onClick(channel) },
+            )
             .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ChannelLogo(
-            channel.name,
-            channel.logoUrl,
-            Modifier.size(width = if (metrics.showChannelNames) 64.dp else 56.dp, height = metrics.rowHeight - 22.dp),
-        )
+        Box {
+            ChannelLogo(
+                channel.name,
+                channel.logoUrl,
+                Modifier.size(width = if (metrics.showChannelNames) 64.dp else 56.dp, height = metrics.rowHeight - 22.dp),
+            )
+            // Badges, as in UHF: favourite (top left) and catch-up (top right).
+            if (channel.isFavorite) LogoBadge(Icons.Rounded.Star, XfinColors.Favorite, Modifier.align(Alignment.TopStart))
+            if (channel.catchup != null) LogoBadge(Icons.Rounded.History, Color.White, Modifier.align(Alignment.TopEnd))
+        }
         if (metrics.showChannelNames) {
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
@@ -491,6 +528,8 @@ private fun ChannelCell(
 @Composable
 private fun ProgramRow(
     channel: Channel,
+    tint: Color?,
+    channelLabel: String?,
     timeline: TimelineState,
     isTv: Boolean,
     now: Long,
@@ -529,6 +568,8 @@ private fun ProgramRow(
                     timeline = timeline,
                     now = now,
                     isTv = isTv,
+                    tint = tint,
+                    channelLabel = channelLabel,
                     focusRequester = if (i == anchor) anchorRequester else null,
                     onFocused = { onFocused(cell, x, w) },
                     onClick = { onClick(cell.program) },
@@ -546,6 +587,8 @@ private fun ProgramCell(
     timeline: TimelineState,
     now: Long,
     isTv: Boolean,
+    tint: Color?,
+    channelLabel: String?,
     focusRequester: FocusRequester?,
     onFocused: () -> Unit,
     onClick: () -> Unit,
@@ -555,11 +598,15 @@ private fun ProgramCell(
     val airing = program?.isAiring(now) == true
     val past = cell.end <= now
     val colors = MaterialTheme.colorScheme
-    val background = when {
+    val base = when {
         focused -> colors.primaryContainer
         airing -> colors.surfaceContainerHighest
         program == null -> colors.surfaceContainerLowest
         else -> colors.surfaceContainerLow
+    }
+    // The channel's colour, strongest on what's on now, faint on past programs.
+    val background = if (tint == null || focused || program == null) base else {
+        tint.copy(alpha = if (airing) 0.34f else if (past) 0.1f else 0.18f).compositeOver(base)
     }
     val progress = if (airing) program!!.progress(now) else 0f
     val elapsed = colors.primary.copy(alpha = 0.13f)
@@ -618,6 +665,24 @@ private fun ProgramCell(
                 .padding(horizontal = 10.dp, vertical = 6.dp),
         ) {
             val alpha = if (past && !focused) 0.5f else 1f
+            // Like UHF, the program on now names the channel (with its start time); when the view is
+            // scrolled past now, the first visible program does.
+            val atEdge = channelLabel != null && remember(x, width, airing) {
+                derivedStateOf {
+                    val visible = x + width > timeline.offset + 1
+                    val edge = x <= timeline.offset + 1 && visible
+                    (airing && visible) || (edge && cell.start > now)
+                }
+            }.value
+            if (atEdge && program != null) {
+                Text(
+                    "$channelLabel · ${formatTime(program.start)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.onSurfaceVariant.copy(alpha = alpha),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
                 program?.title ?: "No information",
                 style = MaterialTheme.typography.bodyMedium,
@@ -626,7 +691,7 @@ private fun ProgramCell(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (program != null) {
+            if (program != null && !atEdge) {
                 Text(
                     formatTime(program.start),
                     style = MaterialTheme.typography.labelSmall,
@@ -716,3 +781,17 @@ private fun NowLine(timeline: TimelineState, now: Long, channelColumn: Dp) {
     )
 }
 
+
+@Composable
+private fun LogoBadge(icon: ImageVector, tint: Color, modifier: Modifier) {
+    Icon(
+        icon,
+        null,
+        tint = tint,
+        modifier = modifier
+            .padding(2.dp)
+            .size(16.dp)
+            .background(Color(0xB3000000), CircleShape)
+            .padding(2.dp),
+    )
+}

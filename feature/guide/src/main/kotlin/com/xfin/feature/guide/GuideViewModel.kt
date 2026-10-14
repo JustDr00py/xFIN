@@ -135,6 +135,10 @@ class GuideViewModel @Inject constructor(
         }
     }
 
+    fun toggleFavorite(channel: Channel) {
+        viewModelScope.launch { channels.setFavorite(channel, !channel.isFavorite) }
+    }
+
     fun open(channel: Channel, program: Program?) {
         _selection.value = ProgramSelection(channel, program)
     }

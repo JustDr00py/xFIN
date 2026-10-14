@@ -146,6 +146,7 @@ internal fun GuideScreen(
                 loadPrograms = viewModel::programs,
                 cachedPrograms = viewModel::cachedPrograms,
                 prefetch = viewModel::prefetch,
+                onToggleFavorite = viewModel::toggleFavorite,
                 onChannelClick = { onPlay(it.id, playFilter) },
                 onProgramClick = { channel, program ->
                     // Tapping what's on now tunes straight in; anything else shows details first.
