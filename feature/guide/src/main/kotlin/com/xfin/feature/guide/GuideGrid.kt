@@ -280,7 +280,14 @@ fun GuideGrid(
         val focus = tv ?: return false
         if (focus.inChannelColumn || focus.cellStart > now) return false
         val previousPlayable = focus.catchup?.covers(focus.cellStart - 1, now) == true
-        if (previousPlayable) return false
+        if (previousPlayable) {
+            // Programs left of the screen can't take focus; bring the previous one into view first.
+            if (timeline.x(focus.cellStart) <= timeline.offset + 1) {
+                scope.launch { timeline.animateTo(timeline.offset - timeline.viewport / 2f) }
+                return true
+            }
+            return false
+        }
         focus.channelRequesters[focus.row]?.let { runCatching { it.requestFocus() } }
         return true
     }
@@ -591,6 +598,9 @@ private fun ProgramCell(
                 }
             }
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            // Cells kept composed just left of the screen must not take focus, or Left from the
+            // channel name would land on one and drag the timeline back, press after press.
+            .focusProperties { canFocus = x + width > timeline.offset + 1 }
             .onFocusChanged {
                 focused = it.isFocused
                 if (it.isFocused) onFocused()
