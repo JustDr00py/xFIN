@@ -10,6 +10,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.ClosedCaption
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
@@ -104,6 +105,8 @@ internal fun ChannelOverlay(
     onZap: (Int) -> Unit,
     onTogglePlay: () -> Unit,
     onPip: () -> Unit,
+    scale: VideoScale,
+    onScale: () -> Unit,
     onMultiview: () -> Unit,
     catchupPosition: Long? = null,
     canStartOver: Boolean = false,
@@ -130,6 +133,7 @@ internal fun ChannelOverlay(
                     if (playback.audioTracks.size > 1 || playback.audioLanguage != null) {
                         AudioChip(playback.audioLanguage, onOptions)
                     }
+                    RoundButton(Icons.Rounded.AspectRatio, "Picture size: ${scale.label}", onScale)
                     RoundButton(Icons.Rounded.PictureInPictureAlt, "Picture in picture", onPip)
                     if (ui.lineupSize > 1 && ui.hasMiniGuide) RoundButton(Icons.AutoMirrored.Rounded.ViewList, "Channel guide", onChannels)
                     RoundButton(Icons.Rounded.MoreHoriz, "More", onOptions)
@@ -458,6 +462,8 @@ internal fun OptionsPanel(
     onFavorite: () -> Unit,
     onSelectTrack: (TrackOption) -> Unit,
     onSubtitlesOff: () -> Unit,
+    scale: VideoScale,
+    onScale: (VideoScale) -> Unit,
     onClose: () -> Unit,
 ) {
     val firstFocus = remember { FocusRequester() }
@@ -496,6 +502,7 @@ internal fun OptionsPanel(
                 PanelItem(track.label, selected = track.selected, onClick = { onSelectTrack(track) })
             }
         }
+        videoScaleItems(scale, onScale)
         item {
             Spacer(Modifier.height(8.dp))
             PanelItem("Close", onClick = onClose)
@@ -547,5 +554,13 @@ internal fun PanelItem(
                 .background(Color.Transparent, MaterialTheme.shapes.small)
                 .clickable(onClick = onClick),
         ) { content() }
+    }
+}
+
+/** "Picture" choices for the options panels (the only way to change it with a remote). */
+internal fun androidx.compose.foundation.lazy.LazyListScope.videoScaleItems(scale: VideoScale, onScale: (VideoScale) -> Unit) {
+    item { PanelHeader("Picture") }
+    items(VideoScale.entries, key = { "scale${it.name}" }) { option ->
+        PanelItem(option.label, selected = option == scale, onClick = { onScale(option) })
     }
 }

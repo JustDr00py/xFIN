@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -119,6 +120,7 @@ internal fun VodPlayerScreen(
 
     val presentation = rememberPresentationState(vod.player)
     val inPip = rememberIsInPip()
+    val scale = rememberVideoScale()
     val enterPip = if (isTv) ({}) else PipEffect(presentation.videoSizeDp ?: androidx.compose.ui.geometry.Size.Zero, playback.playing) {
         vod.togglePlay()
     }
@@ -164,16 +166,18 @@ internal fun VodPlayerScreen(
                         poke()
                     },
                 )
-            },
+            }
+            .pinchToScale(scale),
     ) {
         PlayerSurface(
             player = vod.player,
             surfaceType = SURFACE_TYPE_SURFACE_VIEW,
             modifier = Modifier
                 .align(Alignment.Center)
-                .resizeWithContentScale(ContentScale.Fit, presentation.videoSizeDp),
+                .resizeWithContentScale(if (inPip) ContentScale.Fit else scale.value.contentScale, presentation.videoSizeDp),
         )
         if (presentation.coverSurface) Box(Modifier.fillMaxSize().background(Color.Black))
+        if (!inPip) VideoScaleLabel(scale, Modifier.align(Alignment.TopCenter).padding(top = 96.dp))
 
         if (playback.buffering && ui.error == null && playback.error == null) {
             CircularProgressIndicator(color = Color.White, strokeWidth = 3.dp, modifier = Modifier.align(Alignment.Center).size(52.dp))
@@ -190,6 +194,7 @@ internal fun VodPlayerScreen(
                 onSeekTo = { vod.seekTo(it); poke() },
                 onTracks = { panel = true },
                 onPip = enterPip,
+                onScale = { scale.cycle(); poke() },
             )
         }
 
@@ -218,7 +223,7 @@ internal fun VodPlayerScreen(
             exit = slideOutHorizontally { it } + fadeOut(),
             modifier = Modifier.align(Alignment.CenterEnd),
         ) {
-            TracksPanel(playback, onSelect = vod::selectTrack, onSubtitlesOff = vod::disableSubtitles, onClose = { panel = false })
+            TracksPanel(playback, onSelect = vod::selectTrack, onSubtitlesOff = vod::disableSubtitles, scale = scale.value, onScale = scale::set, onClose = { panel = false })
         }
     }
 }
@@ -234,6 +239,7 @@ private fun Controls(
     onSeekTo: (Long) -> Unit,
     onTracks: () -> Unit,
     onPip: () -> Unit,
+    onScale: () -> Unit,
 ) {
     Box(Modifier.fillMaxSize()) {
         Row(
@@ -262,6 +268,7 @@ private fun Controls(
                     )
                 }
             }
+            if (!isTv) IconButton(onClick = onScale) { Icon(Icons.Rounded.AspectRatio, "Picture size", tint = Color.White) }
             if (!isTv) IconButton(onClick = onPip) { Icon(Icons.Rounded.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
             IconButton(onClick = onTracks) { Icon(Icons.Rounded.Tune, "Audio and subtitles", tint = Color.White) }
         }
@@ -384,6 +391,8 @@ private fun TracksPanel(
     playback: VodPlayerState,
     onSelect: (com.xfin.core.player.TrackOption) -> Unit,
     onSubtitlesOff: () -> Unit,
+    scale: VideoScale,
+    onScale: (VideoScale) -> Unit,
     onClose: () -> Unit,
 ) {
     LazyColumn(
@@ -406,6 +415,7 @@ private fun TracksPanel(
         items(playback.textTracks, key = { "t${it.index}${it.group.hashCode()}" }) { track ->
             PanelItem(track.label, selected = track.selected, onClick = { onSelect(track) })
         }
+        videoScaleItems(scale, onScale)
         item {
             Spacer(Modifier.height(8.dp))
             PanelItem("Close", onClick = onClose)

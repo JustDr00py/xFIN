@@ -113,6 +113,7 @@ internal fun PlayerScreen(
     val swipeThreshold = with(LocalDensity.current) { 64.dp.toPx() }
     val presentation = rememberPresentationState(player)
     val inPip = rememberIsInPip()
+    val scale = rememberVideoScale()
     val enterPip = if (isTv) ({}) else PipEffect(presentation.videoSizeDp ?: androidx.compose.ui.geometry.Size.Zero, playback.playing) {
         viewModel.livePlayer.togglePlay()
     }
@@ -179,18 +180,20 @@ internal fun PlayerScreen(
                         if (total > swipeThreshold) viewModel.zap(-1)
                     },
                 )
-            },
+            }
+            .pinchToScale(scale),
     ) {
         PlayerSurface(
             player = player,
             surfaceType = SURFACE_TYPE_SURFACE_VIEW,
             modifier = Modifier
                 .align(Alignment.Center)
-                .resizeWithContentScale(ContentScale.Fit, presentation.videoSizeDp),
+                .resizeWithContentScale(if (inPip) ContentScale.Fit else scale.value.contentScale, presentation.videoSizeDp),
         )
         if (presentation.coverSurface) {
             Box(Modifier.fillMaxSize().background(Color.Black))
         }
+        if (!inPip) VideoScaleLabel(scale, Modifier.align(Alignment.TopCenter).padding(top = 96.dp))
 
         if (playback.buffering && playback.error == null && ui.resolveError == null) {
             CircularProgressIndicator(
@@ -214,6 +217,8 @@ internal fun PlayerScreen(
             onZap = { viewModel.zap(it); poke() },
             onTogglePlay = { viewModel.livePlayer.togglePlay(); poke() },
             onPip = enterPip,
+            scale = scale.value,
+            onScale = { scale.cycle(); poke() },
             onMultiview = { ui.channel?.let { onOpenMultiview(MultiviewRoute(it.id, viewModel.filterKey)) } },
             catchupPosition = catchupPosition,
             canStartOver = remember(nowNext, ui.channel, ui.catchup) { viewModel.canStartOver() },
@@ -278,6 +283,8 @@ internal fun PlayerScreen(
                 onFavorite = viewModel::toggleFavorite,
                 onSelectTrack = { viewModel.livePlayer.selectTrack(it) },
                 onSubtitlesOff = viewModel.livePlayer::disableSubtitles,
+                scale = scale.value,
+                onScale = scale::set,
                 onClose = { panelOpen = false },
             )
         }
