@@ -131,6 +131,12 @@ internal fun SettingsScreen(
 
             item {
                 Spacer(Modifier.size(24.dp))
+                SectionTitle("Backup")
+                BackupSection(viewModel)
+            }
+
+            item {
+                Spacer(Modifier.size(24.dp))
                 SectionTitle("About")
                 Text(
                     "xFIN · Live TV and media for Android",

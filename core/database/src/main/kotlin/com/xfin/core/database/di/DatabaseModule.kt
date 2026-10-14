@@ -11,6 +11,7 @@ import com.xfin.core.database.MIGRATION_5_6
 import com.xfin.core.database.MIGRATION_6_7
 import com.xfin.core.database.narrowFtsUpdateTriggers
 import com.xfin.core.database.XfinDatabase
+import com.xfin.core.database.dao.BackupDao
 import com.xfin.core.database.dao.ChannelDao
 import com.xfin.core.database.dao.ProgramDao
 import com.xfin.core.database.dao.VodDao
@@ -48,4 +49,7 @@ object DatabaseModule {
 
     @Provides
     fun channelDao(db: XfinDatabase): ChannelDao = db.channelDao()
+
+    @Provides
+    fun backupDao(db: XfinDatabase): BackupDao = db.backupDao()
 }

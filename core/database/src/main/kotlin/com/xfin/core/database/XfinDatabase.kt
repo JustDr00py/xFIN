@@ -3,6 +3,7 @@ package com.xfin.core.database
 import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import com.xfin.core.database.dao.BackupDao
 import com.xfin.core.database.dao.ChannelDao
 import com.xfin.core.database.dao.ProgramDao
 import com.xfin.core.database.dao.VodDao
@@ -42,4 +43,5 @@ abstract class XfinDatabase : RoomDatabase() {
     abstract fun channelDao(): ChannelDao
     abstract fun programDao(): ProgramDao
     abstract fun vodDao(): VodDao
+    abstract fun backupDao(): BackupDao
 }
