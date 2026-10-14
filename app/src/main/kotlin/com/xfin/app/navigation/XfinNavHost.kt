@@ -36,6 +36,7 @@ import com.xfin.feature.onboarding.onboardingScreens
 import com.xfin.feature.player.PlayerRoute
 import com.xfin.feature.player.playerScreen
 import com.xfin.feature.settings.ChannelGroupsRoute
+import com.xfin.feature.settings.RestoreFromBackupButton
 import com.xfin.feature.settings.SettingsRoute
 import com.xfin.feature.settings.settingsScreen
 
@@ -117,6 +118,9 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
                 navController.navigate(LibraryRoute) { popUpTo(0) { inclusive = true } }
             },
             onBack = { navController.popBackStack() },
+            restoreAction = {
+                RestoreFromBackupButton(onRestored = { navController.navigate(LiveTvRoute) { popUpTo(0) { inclusive = true } } })
+            },
         )
         liveTvScreen(
             onOpenCategory = { filter -> navController.navigate(GuideRoute(filter.encode())) },

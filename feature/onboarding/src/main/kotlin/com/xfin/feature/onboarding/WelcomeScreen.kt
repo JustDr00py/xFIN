@@ -39,7 +39,7 @@ import com.xfin.core.designsystem.component.FocusSurface
 import com.xfin.core.designsystem.component.LocalIsTv
 
 @Composable
-internal fun WelcomeScreen(onAddSource: (SourceKind) -> Unit) {
+internal fun WelcomeScreen(onAddSource: (SourceKind) -> Unit, restoreAction: @Composable () -> Unit = {}) {
     val isTv = LocalIsTv.current
     val firstFocus = remember { FocusRequester() }
     Box(
@@ -102,6 +102,9 @@ internal fun WelcomeScreen(onAddSource: (SourceKind) -> Unit) {
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { options(Modifier.fillMaxWidth()) }
             }
+            // Coming from another device: bring sources and favorites back from a backup file.
+            Spacer(Modifier.height(16.dp))
+            restoreAction()
         }
     }
     LaunchedEffect(isTv) { if (isTv) runCatching { firstFocus.requestFocus() } }

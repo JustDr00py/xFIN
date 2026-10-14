@@ -1,5 +1,6 @@
 package com.xfin.feature.onboarding
 
+import androidx.compose.runtime.Composable
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
@@ -23,9 +24,10 @@ fun NavGraphBuilder.onboardingScreens(
     onSourceAdded: () -> Unit,
     onJellyfinAdded: () -> Unit,
     onBack: () -> Unit,
+    restoreAction: @Composable () -> Unit = {},
 ) {
     composable<WelcomeRoute> {
-        WelcomeScreen(onAddSource = onAddSource)
+        WelcomeScreen(onAddSource = onAddSource, restoreAction = restoreAction)
     }
     composable<AddSourceRoute> { entry ->
         val editing = entry.toRoute<AddSourceRoute>().isEdit

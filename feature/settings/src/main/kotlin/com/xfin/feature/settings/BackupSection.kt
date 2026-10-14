@@ -35,6 +35,18 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.LocalDate
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.xfin.data.sources.backup.BackupRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 private const val MIN_PASSWORD = 6
 
@@ -200,4 +212,86 @@ private fun ResultDialog(title: String, message: String, onDismiss: () -> Unit) 
         text = { Text(message) },
         confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
     )
+}
+
+/** Restore on its own, for the welcome screen of a fresh install (Settings isn't reachable yet). */
+@HiltViewModel
+class RestoreViewModel @Inject constructor(private val backups: BackupRepository) : ViewModel() {
+    private val _state = MutableStateFlow<BackupUiState>(BackupUiState.Idle)
+    val state: StateFlow<BackupUiState> = _state.asStateFlow()
+
+    fun restore(uri: Uri, password: String) {
+        if (_state.value is BackupUiState.Working) return
+        _state.value = BackupUiState.Working("Restoring…")
+        viewModelScope.launch {
+            _state.value = try {
+                val result = backups.restore(uri, password)
+                BackupUiState.Done(
+                    "Restored ${result.sourcesAdded} source${if (result.sourcesAdded == 1) "" else "s"}. " +
+                        "Channels and guides are loading in the background.",
+                )
+            } catch (e: Exception) {
+                BackupUiState.Failed(e.message ?: "Something went wrong")
+            }
+        }
+    }
+
+    fun dismiss() {
+        _state.value = BackupUiState.Idle
+    }
+}
+
+/** "Restore from a backup": pick the file, enter its password, then [onRestored] once it's in. */
+@Composable
+fun RestoreFromBackupButton(onRestored: () -> Unit, modifier: Modifier = Modifier, viewModel: RestoreViewModel = hiltViewModel()) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    var pickedUri by remember { mutableStateOf<Uri?>(null) }
+    var pickerMissing by remember { mutableStateOf(false) }
+    val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> pickedUri = uri }
+
+    TextButton(
+        onClick = {
+            try {
+                openFile.launch(arrayOf("*/*"))
+            } catch (e: ActivityNotFoundException) {
+                pickerMissing = true
+            }
+        },
+        enabled = state !is BackupUiState.Working,
+        modifier = modifier,
+    ) {
+        if (state is BackupUiState.Working) {
+            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("Restoring…")
+        } else {
+            Icon(Icons.Rounded.Restore, null, Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Restore from a backup")
+        }
+    }
+
+    pickedUri?.let { uri ->
+        PasswordDialog(
+            title = "Backup password",
+            message = "Enter the password you chose when you made this backup.",
+            confirm = false,
+            onDismiss = { pickedUri = null },
+            onConfirm = { password ->
+                pickedUri = null
+                viewModel.restore(uri, password)
+            },
+        )
+    }
+    when (val s = state) {
+        is BackupUiState.Done -> ResultDialog("Done", s.message) {
+            viewModel.dismiss()
+            onRestored()
+        }
+        is BackupUiState.Failed -> ResultDialog("Couldn't finish", s.message, viewModel::dismiss)
+        else -> Unit
+    }
+    if (pickerMissing) {
+        ResultDialog("No file picker", "This device has no app for choosing files.") { pickerMissing = false }
+    }
 }
