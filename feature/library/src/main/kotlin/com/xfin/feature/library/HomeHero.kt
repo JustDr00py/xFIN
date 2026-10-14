@@ -1,6 +1,9 @@
 package com.xfin.feature.library
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,11 +87,15 @@ internal fun HomeHero(
     val isTv = LocalIsTv.current
     val background = MaterialTheme.colorScheme.background
 
-    LaunchedEffect(pager.currentPage, items.size) {
+    // Keyed on the settled page: currentPage flips halfway through a swipe, which would restart
+    // this effect and cancel its own animation, leaving the banner stuck between two slides.
+    LaunchedEffect(pager.settledPage, items.size) {
         if (items.size < 2) return@LaunchedEffect
         delay(AUTO_ADVANCE_MS)
-        if (!pager.isScrollInProgress) pager.animateScrollToPage((pager.currentPage + 1) % items.size)
+        if (!pager.isScrollInProgress) pager.animateScrollToPage((pager.settledPage + 1) % items.size)
     }
+    val buttonInteraction = remember { MutableInteractionSource() }
+    val buttonFocused by buttonInteraction.collectIsFocusedAsState()
 
     Box(Modifier.fillMaxWidth().height(height)) {
         HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
@@ -142,8 +149,11 @@ internal fun HomeHero(
             Button(
                 onClick = { onOpenItem(item) },
                 colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+                interactionSource = buttonInteraction,
                 modifier = Modifier
                     .then(if (isTv) Modifier else Modifier.fillMaxWidth(0.7f))
+                    // A white button needs a ring of its own to show focus on TV.
+                    .then(if (buttonFocused) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape).padding(3.dp) else Modifier)
                     .onPreviewKeyEvent { event ->
                         // TV: left/right on the button flips through the banner.
                         if (event.type != KeyEventType.KeyDown || items.size < 2) return@onPreviewKeyEvent false
