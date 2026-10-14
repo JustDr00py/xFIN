@@ -56,18 +56,18 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
 
     // Only show tabs for the kinds of sources the user has.
     val tabs = buildList {
-        if (sources.iptv || !sources.library) addAll(listOf(TopLevel.LIVE_TV, TopLevel.GUIDE))
-        if (sources.library) addAll(listOf(TopLevel.LIBRARY, TopLevel.MOVIES, TopLevel.SHOWS))
+        if (sources.library) add(TopLevel.HOME)
+        if (sources.iptv || !sources.library) add(TopLevel.LIVE_TV)
+        if (sources.library) addAll(listOf(TopLevel.SERIES, TopLevel.MOVIES))
         add(TopLevel.SETTINGS)
     }
     val shell: @Composable (@Composable () -> Unit) -> Unit = { content ->
         AppShell(
             current = when {
                 destination?.hasRoute<SettingsRoute>() == true -> TopLevel.SETTINGS
-                destination?.hasRoute<GuideRoute>() == true -> TopLevel.GUIDE
-                destination?.hasRoute<LibraryRoute>() == true -> TopLevel.LIBRARY
+                destination?.hasRoute<LibraryRoute>() == true -> TopLevel.HOME
                 destination?.hasRoute<MoviesRoute>() == true -> TopLevel.MOVIES
-                destination?.hasRoute<ShowsRoute>() == true -> TopLevel.SHOWS
+                destination?.hasRoute<ShowsRoute>() == true -> TopLevel.SERIES
                 else -> TopLevel.LIVE_TV
             },
             tabs = tabs,
@@ -119,7 +119,7 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
             onBack = { navController.popBackStack() },
         )
         liveTvScreen(
-            onPlay = { id, filter -> navController.navigate(PlayerRoute(id, filter.encode())) },
+            onOpenCategory = { filter -> navController.navigate(GuideRoute(filter.encode())) },
             onSearch = { navController.navigate(SearchRoute(SearchScope.LIVE.name)) },
             onOpenSettings = openSettings,
             shell = shell,
@@ -130,6 +130,7 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
             onPlayArchive = { id, filter, start, end, title ->
                 navController.navigate(PlayerRoute(id, filter.encode(), catchupStart = start, catchupEnd = end, catchupTitle = title))
             },
+            onBack = { navController.popBackStack() },
             shell = shell,
         )
         settingsScreen(

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DateRange
@@ -56,6 +57,7 @@ internal fun GuideScreen(
     onPlay: (channelId: Long, filter: ChannelFilter) -> Unit,
     onOpenSettings: () -> Unit,
     onPlayArchive: (channelId: Long, filter: ChannelFilter, start: Long, end: Long, title: String) -> Unit,
+    onBack: () -> Unit,
     viewModel: GuideViewModel = hiltViewModel(),
 ) {
     val isTv = LocalIsTv.current
@@ -86,16 +88,22 @@ internal fun GuideScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("Guide", style = MaterialTheme.typography.headlineMedium, maxLines = 1, softWrap = false)
+            // Opened from a Live TV category; the remote's Back does the same on TV.
+            if (!isTv) {
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+            }
+            // On phones the category name is the title (as in UHF); the TV has room for both.
+            if (isTv) Text("Guide", style = MaterialTheme.typography.headlineMedium, maxLines = 1, softWrap = false)
             if (refresh is EpgRefreshState.Running) {
                 CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
             }
             // The picker takes whatever room is left and ellipsizes long group names, so the
             // fixed-size buttons beside it never get squeezed.
-            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+            Box(Modifier.weight(1f), contentAlignment = if (isTv) Alignment.CenterEnd else Alignment.CenterStart) {
                 TextButton(onClick = { picking = true }) {
                     Text(
                         tabs.firstOrNull { it.filter == filter }?.label ?: "All channels",
+                        style = if (isTv) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
@@ -103,7 +111,8 @@ internal fun GuideScreen(
                     Icon(Icons.Rounded.ArrowDropDown, null)
                 }
             }
-            IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
+            // Phones have a Settings tab; the TV keeps the shortcut.
+            if (isTv) IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
             FilledTonalButton(onClick = {
                 scope.launch { timeline.animateTo(timeline.x(now - TimeUnit.MINUTES.toMillis(30))) }
             }) {

@@ -11,17 +11,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LiveTv
 import androidx.compose.material.icons.outlined.Movie
 import androidx.compose.material.icons.outlined.Tv
-import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.LiveTv
 import androidx.compose.material.icons.rounded.Movie
 import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,19 +38,18 @@ import com.xfin.core.designsystem.component.windowWidthDp
 import androidx.compose.ui.unit.dp
 import com.xfin.core.designsystem.component.FocusSurface
 import com.xfin.core.designsystem.component.LocalIsTv
-import com.xfin.feature.guide.GuideRoute
 import com.xfin.feature.livetv.LiveTvRoute
 import com.xfin.feature.library.LibraryRoute
 import com.xfin.feature.library.MoviesRoute
 import com.xfin.feature.library.ShowsRoute
 import com.xfin.feature.settings.SettingsRoute
 
+/** The tabs, in UHF's order: Home, Live TV, Series, Movies (Settings on TV and tablets). */
 enum class TopLevel(val route: Any, val label: String, val icon: ImageVector, val selectedIcon: ImageVector) {
+    HOME(LibraryRoute, "Home", Icons.Outlined.Home, Icons.Rounded.Home),
     LIVE_TV(LiveTvRoute, "Live TV", Icons.Outlined.LiveTv, Icons.Rounded.LiveTv),
-    GUIDE(GuideRoute, "Guide", Icons.Outlined.DateRange, Icons.Rounded.DateRange),
-    LIBRARY(LibraryRoute, "Library", Icons.Outlined.VideoLibrary, Icons.Rounded.VideoLibrary),
+    SERIES(ShowsRoute, "Series", Icons.Outlined.Tv, Icons.Rounded.Tv),
     MOVIES(MoviesRoute, "Movies", Icons.Outlined.Movie, Icons.Rounded.Movie),
-    SHOWS(ShowsRoute, "Shows", Icons.Outlined.Tv, Icons.Rounded.Tv),
     SETTINGS(SettingsRoute, "Settings", Icons.Outlined.Settings, Icons.Rounded.Settings),
 }
 
@@ -62,7 +59,7 @@ fun AppShell(current: TopLevel, tabs: List<TopLevel>, onNavigate: (TopLevel) -> 
     when {
         LocalIsTv.current -> TvShell(current, tabs, onNavigate, content)
         windowWidthDp() >= 600 -> RailShell(current, tabs, onNavigate, content)
-        // A phone bar fits five tabs; Settings then lives behind the gear on the Library page.
+        // A phone bar fits five tabs; past that, Settings lives behind the gear on Home and Live TV.
         else -> PhoneShell(current, if (tabs.size > 5) tabs - TopLevel.SETTINGS else tabs, onNavigate, content)
     }
 }

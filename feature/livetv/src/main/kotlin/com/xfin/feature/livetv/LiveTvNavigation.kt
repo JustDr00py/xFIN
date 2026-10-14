@@ -10,12 +10,12 @@ import kotlinx.serialization.Serializable
 data object LiveTvRoute
 
 fun NavGraphBuilder.liveTvScreen(
-    onPlay: (channelId: Long, filter: ChannelFilter) -> Unit,
+    onOpenCategory: (ChannelFilter) -> Unit,
     onSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     shell: @Composable (content: @Composable () -> Unit) -> Unit,
 ) {
     composable<LiveTvRoute> {
-        shell { LiveTvScreen(onPlay = onPlay, onSearch = onSearch, onOpenSettings = onOpenSettings) }
+        shell { LiveTvScreen(onOpenCategory = onOpenCategory, onSearch = onSearch, onOpenSettings = onOpenSettings) }
     }
 }
