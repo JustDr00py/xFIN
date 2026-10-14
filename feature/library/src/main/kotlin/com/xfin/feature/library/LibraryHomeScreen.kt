@@ -29,6 +29,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,16 +77,30 @@ internal fun LibraryHomeScreen(
     val posterWidth = if (isTv) 170.dp else 124.dp
     val gutter = if (isTv) 40.dp else 20.dp
 
+    val hero = remember(servers) { heroItems(servers) }
+    val header: @Composable () -> Unit = {
+        Row(
+            Modifier.fillMaxWidth().statusBarsPadding().padding(start = gutter, end = 8.dp, top = if (isTv) 24.dp else 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Home", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
+            // Phones and TVs reach Settings from the tabs; tablets' rails have it too.
+            if (isTv) IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
+        }
+    }
+    val heroHeight = (LocalConfiguration.current.screenHeightDp * if (isTv) 0.62f else 0.58f).dp
+
     LazyColumn(
-        modifier = Modifier.fillMaxSize().statusBarsPadding(),
-        contentPadding = PaddingValues(bottom = 32.dp, top = if (isTv) 24.dp else 8.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(if (isTv) 28.dp else 22.dp),
     ) {
-        item {
-            Row(Modifier.fillMaxWidth().padding(start = gutter, end = 8.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Home", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-                IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
-                IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
+        item(key = "hero") {
+            if (hero.isEmpty()) {
+                header()
+            } else {
+                HomeHero(hero, heroHeight, onOpenItem = { onOpenItem(it.sourceId, it.id) }, header = header)
             }
         }
         item(key = "tv-guide") { RecentChannelsSection(gutter, onPlayChannel = onPlayChannel, onViewAll = onOpenRecentGuide) }
