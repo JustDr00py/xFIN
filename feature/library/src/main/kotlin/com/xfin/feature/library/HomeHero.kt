@@ -164,14 +164,12 @@ internal fun HomeHero(
                     // A white button needs a ring of its own to show focus on TV.
                     .then(if (buttonFocused) Modifier.border(3.dp, MaterialTheme.colorScheme.primary, CircleShape).padding(3.dp) else Modifier)
                     .onPreviewKeyEvent { event ->
-                        // TV: left/right on the button flips through the banner.
-                        if (event.type != KeyEventType.KeyDown || items.size < 2) return@onPreviewKeyEvent false
-                        val delta = when (event.key) {
-                            Key.DirectionLeft -> -1
-                            Key.DirectionRight -> 1
-                            else -> return@onPreviewKeyEvent false
+                        // TV: Right flips to the next slide; Left is left free for the sidebar,
+                        // so the banner never traps focus.
+                        if (event.type != KeyEventType.KeyDown || items.size < 2 || event.key != Key.DirectionRight) {
+                            return@onPreviewKeyEvent false
                         }
-                        scope.launch { pager.animateScrollToPage((pager.currentPage + delta + items.size) % items.size) }
+                        scope.launch { pager.animateScrollToPage((pager.currentPage + 1) % items.size) }
                         true
                     },
             ) {
