@@ -92,6 +92,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.xfin.core.designsystem.component.rememberLogoTint
 import kotlinx.coroutines.Job
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.BringIntoViewSpec
@@ -188,7 +189,7 @@ private const val TV_PIVOT_ROW = 1
 @Stable
 private class TvGuideFocus(initialTime: Long) {
     var focusTime by mutableLongStateOf(initialTime)
-    var row = 0
+    var row by mutableIntStateOf(0)
     var inChannelColumn = false
 
     /** The focused program's span, for paging through programs longer than the screen. */
@@ -226,11 +227,27 @@ fun GuideGrid(
 ) {
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
-    val tv = if (isTv) remember { TvGuideFocus(now) } else null
+    // Saved across leaving for the player and coming back: the paged list can start out empty
+    // then, which loses the list's own position, and the focus state below is rebuilt.
+    var savedFirst by rememberSaveable { mutableIntStateOf(0) }
+    var savedRow by rememberSaveable { mutableIntStateOf(0) }
+    var savedKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // Starts from the saved row, so the rebuilt state can't overwrite it with row 0.
+    val tv = if (isTv) remember { TvGuideFocus(now).also { it.row = savedRow } } else null
     var scrollJob by remember { mutableStateOf<Job?>(null) }
+    LaunchedEffect(listState) { snapshotFlow { listState.firstVisibleItemIndex }.collect { if (channels.itemCount > 0) savedFirst = it } }
+    if (tv != null) LaunchedEffect(tv) { snapshotFlow { tv.row }.collect { savedRow = it } }
+
+    // Back to the first channel only when the category really changes, not on every return.
     LaunchedEffect(resetKey) {
-        listState.scrollToItem(0)
-        tv?.row = 0
+        val key = resetKey?.toString()
+        if (savedKey != null && savedKey != key) {
+            listState.scrollToItem(0)
+            tv?.row = 0
+            savedFirst = 0
+            savedRow = 0
+        }
+        savedKey = key
     }
 
     // Load the programs of the rows around the visible ones in batches, before they scroll in.
@@ -444,8 +461,18 @@ fun GuideGrid(
     if (tv != null) {
         LaunchedEffect(channels.itemCount > 0) {
             if (channels.itemCount > 0) {
+                // Returning from the player: back to the row that was highlighted.
+                val row = savedRow.coerceIn(0, channels.itemCount - 1)
+                tv.row = row
+                if (listState.firstVisibleItemIndex == 0 && row > TV_PIVOT_ROW) listState.scrollToItem(row - TV_PIVOT_ROW)
                 kotlinx.coroutines.delay(250)
-                runCatching { tv.channelRequesters[listState.firstVisibleItemIndex]?.requestFocus() }
+                runCatching { (tv.channelRequesters[row] ?: tv.channelRequesters[listState.firstVisibleItemIndex])?.requestFocus() }
+            }
+        }
+    } else {
+        LaunchedEffect(channels.itemCount > 0) {
+            if (channels.itemCount > 0 && listState.firstVisibleItemIndex == 0 && savedFirst > 0) {
+                listState.scrollToItem(savedFirst.coerceAtMost(channels.itemCount - 1))
             }
         }
     }
