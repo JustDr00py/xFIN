@@ -41,6 +41,14 @@ import androidx.compose.ui.unit.dp
 import com.xfin.core.designsystem.component.ChannelLogo
 import com.xfin.core.designsystem.component.ProgressTrack
 import com.xfin.core.model.Channel
+import com.xfin.core.model.ChannelFilter
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 
 /** UHF-style channel strip over the video: browse what's on and switch without leaving playback. */
 @Composable
@@ -52,12 +60,26 @@ internal fun MiniGuide(
     nowPlaying: suspend (Channel, Long) -> ProgramSlot?,
     isTv: Boolean,
     onSelect: (Int) -> Unit,
+    /** TV: Left in the list opens the categories column. */
+    onLeft: () -> Unit = {},
+    /** Set when focus should come back to the list (e.g. after picking a category). */
+    focusKey: Any? = null,
 ) {
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = (current - 2).coerceAtLeast(0))
     val focus = remember { FocusRequester() }
+    // Another category has no current row; its first channel takes focus instead.
+    val focusRow = if (current >= 0) current else 0
     LazyColumn(
         state = listState,
         modifier = Modifier
+            .onPreviewKeyEvent { event ->
+                if (isTv && event.type == KeyEventType.KeyDown && event.key == Key.DirectionLeft) {
+                    onLeft()
+                    true
+                } else {
+                    false
+                }
+            }
             .fillMaxHeight()
             .width(if (isTv) 440.dp else 360.dp)
             .background(Brush.horizontalGradient(listOf(Color(0xF5090B10), Color(0xE6090B10))))
@@ -85,7 +107,7 @@ internal fun MiniGuide(
                         },
                     )
                     .then(if (focused) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium) else Modifier)
-                    .then(if (selected) Modifier.focusRequester(focus) else Modifier)
+                    .then(if (index == focusRow) Modifier.focusRequester(focus) else Modifier)
                     .onFocusChanged { focused = it.isFocused }
                     .clickable { onSelect(index) }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
@@ -123,10 +145,44 @@ internal fun MiniGuide(
             }
         }
     }
-    LaunchedEffect(Unit) {
-        if (isTv) {
-            listState.scrollToItem((current - 2).coerceAtLeast(0))
+    LaunchedEffect(focusKey, lineup.itemCount > 0) {
+        if (isTv && lineup.itemCount > 0) {
+            listState.scrollToItem((focusRow - 2).coerceAtLeast(0))
+            withFrameNanos { }
             runCatching { focus.requestFocus() }
         }
     }
+}
+
+/** The categories beside the mini guide: pick one to browse its channels. */
+@Composable
+internal fun CategoryColumn(
+    categories: List<PlayerCategory>,
+    selected: ChannelFilter,
+    onSelect: (ChannelFilter) -> Unit,
+) {
+    val focus = remember { FocusRequester() }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = (categories.indexOfFirst { it.filter == selected } - 2).coerceAtLeast(0),
+    )
+    LazyColumn(
+        state = listState,
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(300.dp)
+            .background(Color(0xFA06080C))
+            .safeDrawingPadding(),
+        contentPadding = PaddingValues(vertical = 20.dp, horizontal = 12.dp),
+    ) {
+        item { PanelHeader("Categories") }
+        items(categories, key = { it.filter.toString() }) { category ->
+            PanelItem(
+                label = category.label,
+                selected = category.filter == selected,
+                onClick = { onSelect(category.filter) },
+                modifier = if (category.filter == selected) Modifier.focusRequester(focus) else Modifier,
+            )
+        }
+    }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 }

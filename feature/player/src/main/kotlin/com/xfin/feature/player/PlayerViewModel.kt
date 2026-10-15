@@ -13,6 +13,9 @@ import com.xfin.core.model.Channel
 import com.xfin.core.model.NowNext
 import com.xfin.core.model.ProgramSlot
 import com.xfin.core.model.decodeChannelFilter
+import com.xfin.core.model.ChannelFilter
+import com.xfin.core.model.encode
+import kotlinx.coroutines.flow.flatMapLatest
 import com.xfin.core.player.LivePlayer
 import com.xfin.core.player.LivePlayerState
 import com.xfin.data.sources.ChannelRepository
@@ -73,10 +76,15 @@ class PlayerViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     private val route = savedState.toRoute<PlayerRoute>()
-    private val filter = decodeChannelFilter(route.filter)
+    /** The category being zapped through; changes when a channel is picked from another one. */
+    private var filter = decodeChannelFilter(route.filter)
 
     /** The encoded lineup filter, passed on to multiview so it can offer the same channels. */
-    val filterKey: String = route.filter
+    val filterKey: String get() = filter.encode()
+
+    /** The category shown in the mini guide, which can be browsed without changing playback. */
+    private val _browse = MutableStateFlow(filter)
+    val browseFilter: StateFlow<ChannelFilter> = _browse.asStateFlow()
 
     /**
      * The zapping lineup as channel ids only, so even 100k-channel playlists open instantly;
@@ -122,7 +130,52 @@ class PlayerViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, NowNext(null, null))
 
     /** The lineup as pages for the in-player mini guide (same order as [lineup]). */
-    val miniGuide: Flow<PagingData<Channel>> = channels.pagedChannels(filter).cachedIn(viewModelScope)
+    val miniGuide: Flow<PagingData<Channel>> = _browse.flatMapLatest { channels.pagedChannels(it) }.cachedIn(viewModelScope)
+
+    /** Categories for the mini guide's side column (Favorites and Recent first, as on Live TV). */
+    val categories: StateFlow<List<PlayerCategory>> = combine(
+        channels.observeGroups(),
+        channels.observeHasFavorites(),
+        channels.observeHasHistory(),
+    ) { groups, hasFavorites, hasHistory ->
+        buildList {
+            if (hasFavorites) add(PlayerCategory(ChannelFilter.Favorites, "Favorites"))
+            if (hasHistory) add(PlayerCategory(ChannelFilter.Recent, "Recent"))
+            add(PlayerCategory(ChannelFilter.All, "All channels"))
+            groups.filterNot { it.hidden }.forEach { add(PlayerCategory(ChannelFilter.Group(it.name), it.name)) }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Whether the mini guide shows the lineup being played (so its current row can be marked). */
+    val browsingCurrent: Boolean get() = _browse.value == filter
+
+    fun browse(category: ChannelFilter) {
+        _browse.value = category
+    }
+
+    /** Back to the playing category, e.g. when the mini guide closes. */
+    fun resetBrowse() {
+        _browse.value = filter
+    }
+
+    /** Picks row [index] of the mini guide; from another category, that category becomes the lineup. */
+    fun tuneFromGuide(index: Int) {
+        val browsing = _browse.value
+        if (browsing == filter) {
+            tuneTo(index)
+            return
+        }
+        viewModelScope.launch {
+            val ids = channels.lineup(browsing)
+            if (index !in ids.indices) return@launch
+            filter = browsing
+            lineup = ids
+            positionOf = null
+            _ui.update { it.copy(catchup = null, hasMiniGuide = true) }
+            show(index, direction = 0)
+            tune(delayMs = 0)
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -333,3 +386,5 @@ class PlayerViewModel @Inject constructor(
 }
 
 private fun floorMinute(time: Long) = time / 60_000 * 60_000
+
+data class PlayerCategory(val filter: ChannelFilter, val label: String)

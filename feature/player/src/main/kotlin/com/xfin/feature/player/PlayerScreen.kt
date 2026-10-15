@@ -24,6 +24,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
+import androidx.compose.foundation.layout.Row
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -82,6 +86,17 @@ internal fun PlayerScreen(
     var overlayVisible by remember { mutableStateOf(true) }
     var panelOpen by remember { mutableStateOf(false) }
     var guideOpen by remember { mutableStateOf(false) }
+    var categoriesOpen by remember { mutableStateOf(false) }
+    var guideFocus by remember { mutableStateOf(0) }
+    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val browsing by viewModel.browseFilter.collectAsStateWithLifecycle()
+    // Closing the mini guide drops whatever category was being browsed.
+    LaunchedEffect(guideOpen) {
+        if (!guideOpen) {
+            categoriesOpen = false
+            viewModel.resetBrowse()
+        }
+    }
     var interaction by remember { mutableStateOf(0) }
     val focus = remember { FocusRequester() }
 
@@ -109,6 +124,10 @@ internal fun PlayerScreen(
     LaunchedEffect(panelOpen, guideOpen) { if (!panelOpen && !guideOpen) focus.requestFocus() }
     BackHandler(enabled = panelOpen) { panelOpen = false }
     BackHandler(enabled = guideOpen) { guideOpen = false }
+    BackHandler(enabled = categoriesOpen) {
+        categoriesOpen = false
+        guideFocus++
+    }
 
     val swipeThreshold = with(LocalDensity.current) { 64.dp.toPx() }
     val presentation = rememberPresentationState(player)
@@ -267,18 +286,35 @@ internal fun PlayerScreen(
             exit = slideOutHorizontally { -it } + fadeOut(),
             modifier = Modifier.align(Alignment.CenterStart),
         ) {
+            Row {
+            AnimatedVisibility(visible = categoriesOpen, enter = expandHorizontally() + fadeIn(), exit = shrinkHorizontally() + fadeOut()) {
+                CategoryColumn(
+                    categories = categories,
+                    selected = browsing,
+                    onSelect = {
+                        viewModel.browse(it)
+                        categoriesOpen = false
+                        guideFocus++
+                    },
+                )
+            }
+            key(browsing) {
             MiniGuide(
                 lineup = miniGuide,
-                current = ui.position,
+                current = if (browsing == viewModel.browseFilter.value && viewModel.browsingCurrent) ui.position else -1,
                 now = now,
                 guideVersion = guideVersion,
                 nowPlaying = viewModel::nowPlaying,
                 isTv = isTv,
                 onSelect = {
-                    viewModel.tuneTo(it)
+                    viewModel.tuneFromGuide(it)
                     guideOpen = false
                 },
+                onLeft = { categoriesOpen = true },
+                focusKey = guideFocus,
             )
+            }
+            }
         }
 
         AnimatedVisibility(
