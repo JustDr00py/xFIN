@@ -85,6 +85,8 @@ import com.xfin.core.model.MediaKind
 import com.xfin.core.player.VodPlayer
 import com.xfin.core.player.VodPlayerState
 import kotlinx.coroutines.delay
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.focus.focusRequester
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -105,6 +107,26 @@ internal fun VodPlayerScreen(
     fun poke() {
         overlay = true
         interaction++
+    }
+
+    // TV: once the controls are brought up, the arrows move between their buttons (until they hide).
+    var buttonsActive by remember { mutableStateOf(false) }
+    val playFocus = remember { FocusRequester() }
+    fun showButtons() {
+        poke()
+        buttonsActive = true
+    }
+    LaunchedEffect(buttonsActive, overlay) {
+        if (buttonsActive && overlay) {
+            withFrameNanos { }
+            runCatching { playFocus.requestFocus() }
+        }
+    }
+    LaunchedEffect(overlay) {
+        if (!overlay) {
+            buttonsActive = false
+            if (!panel) runCatching { focus.requestFocus() }
+        }
     }
 
     FullscreenEffect(lockLandscape = !isTv)
@@ -132,7 +154,25 @@ internal fun VodPlayerScreen(
             .focusRequester(focus)
             .focusable()
             .onPreviewKeyEvent { event ->
+                // TV: Back hides the controls first. Handled here rather than with a BackHandler,
+                // which didn't get Back once focus had moved off the first button.
+                if (!panel && isTv && buttonsActive && overlay && event.key.nativeKeyCode == KeyEvent.KEYCODE_BACK) {
+                    if (event.type == KeyEventType.KeyUp) overlay = false
+                    return@onPreviewKeyEvent true
+                }
                 if (panel || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                if (isTv && buttonsActive && overlay) {
+                    // The buttons have focus: let them take the arrows and OK; media keys still work.
+                    return@onPreviewKeyEvent when (event.key.nativeKeyCode) {
+                        KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> { vod.togglePlay(); poke(); true }
+                        KeyEvent.KEYCODE_MEDIA_PLAY -> { vod.player.play(); poke(); true }
+                        KeyEvent.KEYCODE_MEDIA_PAUSE -> { vod.player.pause(); poke(); true }
+                        KeyEvent.KEYCODE_MEDIA_REWIND -> { vod.seekBy(-VodPlayer.SEEK_STEP_MS); poke(); true }
+                        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { vod.seekBy(VodPlayer.SEEK_STEP_MS); poke(); true }
+                        KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { panel = true; true }
+                        else -> { interaction++; false }
+                    }
+                }
                 when (event.key.nativeKeyCode) {
                     KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
                         vod.seekBy(-VodPlayer.SEEK_STEP_MS); poke(); true
@@ -142,11 +182,16 @@ internal fun VodPlayerScreen(
                     }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER,
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_SPACE -> {
-                        vod.togglePlay(); poke(); true
+                        vod.togglePlay()
+                        if (isTv) showButtons() else poke()
+                        true
                     }
                     KeyEvent.KEYCODE_MEDIA_PLAY -> { vod.player.play(); poke(); true }
                     KeyEvent.KEYCODE_MEDIA_PAUSE -> { vod.player.pause(); poke(); true }
-                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> { poke(); true }
+                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        if (isTv) showButtons() else poke()
+                        true
+                    }
                     KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { panel = true; true }
                     else -> false
                 }
@@ -193,6 +238,7 @@ internal fun VodPlayerScreen(
                 onSeekBy = { vod.seekBy(it); poke() },
                 onSeekTo = { vod.seekTo(it); poke() },
                 onTracks = { panel = true },
+                playFocus = playFocus,
                 onPip = enterPip,
                 onScale = { scale.cycle(); poke() },
             )
@@ -240,6 +286,7 @@ private fun Controls(
     onTracks: () -> Unit,
     onPip: () -> Unit,
     onScale: () -> Unit,
+    playFocus: FocusRequester = remember { FocusRequester() },
 ) {
     Box(Modifier.fillMaxSize()) {
         Row(
@@ -270,7 +317,8 @@ private fun Controls(
             }
             if (!isTv) IconButton(onClick = onScale) { Icon(Icons.Rounded.AspectRatio, "Picture size", tint = Color.White) }
             if (!isTv) IconButton(onClick = onPip) { Icon(Icons.Rounded.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
-            IconButton(onClick = onTracks) { Icon(Icons.Rounded.Tune, "Audio and subtitles", tint = Color.White) }
+            // TV has the Audio & subtitles button with the playback controls.
+            if (!isTv) IconButton(onClick = onTracks) { Icon(Icons.Rounded.Tune, "Audio and subtitles", tint = Color.White) }
         }
 
         if (!isTv) {
@@ -309,12 +357,22 @@ private fun Controls(
         ) {
             SeekBar(playback, onSeekTo)
             if (isTv) {
-                Text(
-                    "◀ ▶ Skip 10 s   ·   OK Play/Pause   ·   Menu Audio & subtitles",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color.White.copy(alpha = 0.45f),
-                    modifier = Modifier.padding(top = 6.dp),
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TvControl(Icons.Rounded.Replay10, "Back 10 seconds") { onSeekBy(-VodPlayer.SEEK_STEP_MS) }
+                    TvControl(
+                        if (playback.playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        if (playback.playing) "Pause" else "Play",
+                        modifier = Modifier.focusRequester(playFocus),
+                        onClick = onTogglePlay,
+                    )
+                    TvControl(Icons.Rounded.Forward10, "Forward 10 seconds") { onSeekBy(VodPlayer.SEEK_STEP_MS) }
+                    androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                    TvControl(Icons.Rounded.Tune, "Audio & subtitles", label = "Audio & subtitles", onClick = onTracks)
+                }
             }
         }
     }
@@ -429,4 +487,32 @@ private fun formatClock(ms: Long): String {
     val m = (total % 3600) / 60
     val s = total % 60
     return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+}
+
+/** A round control on TV (focus ring and scale come from FocusSurface); [label] makes it a pill. */
+@Composable
+private fun TvControl(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    onClick: () -> Unit,
+) {
+    com.xfin.core.designsystem.component.FocusSurface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.extraLarge,
+        focusedScale = 1.1f,
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = if (label != null) 20.dp else 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, description, modifier = Modifier.size(32.dp))
+            if (label != null) {
+                androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
+                Text(label, style = MaterialTheme.typography.titleMedium)
+            }
+        }
+    }
 }
