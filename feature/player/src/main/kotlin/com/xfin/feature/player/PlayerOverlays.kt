@@ -489,7 +489,10 @@ internal fun OptionsPanel(
         }
         if (playback.audioTracks.size > 1) {
             item { PanelHeader("Audio") }
-            items(playback.audioTracks, key = { "a${it.label}${it.index}${it.group.hashCode()}" }) { track ->
+            // Keys by position: picking a track changes its group object, and a changed key would
+            // recreate the row and drop the remote's focus.
+            items(playback.audioTracks.size, key = { "a$it" }) { i ->
+                val track = playback.audioTracks[i]
                 PanelItem(track.label, selected = track.selected, onClick = { onSelectTrack(track) })
             }
         }
@@ -498,7 +501,8 @@ internal fun OptionsPanel(
             item {
                 PanelItem("Off", selected = playback.textTracks.none { it.selected }, onClick = onSubtitlesOff)
             }
-            items(playback.textTracks, key = { "t${it.label}${it.index}${it.group.hashCode()}" }) { track ->
+            items(playback.textTracks.size, key = { "t$it" }) { i ->
+                val track = playback.textTracks[i]
                 PanelItem(track.label, selected = track.selected, onClick = { onSelectTrack(track) })
             }
         }

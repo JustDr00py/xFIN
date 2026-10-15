@@ -85,6 +85,7 @@ import com.xfin.core.model.MediaKind
 import com.xfin.core.player.VodPlayer
 import com.xfin.core.player.VodPlayerState
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.focus.focusRequester
 
@@ -453,6 +454,12 @@ private fun TracksPanel(
     onScale: (VideoScale) -> Unit,
     onClose: () -> Unit,
 ) {
+    // TV: the button that opened the panel is hidden, so focus has to be moved into the panel.
+    val firstFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        runCatching { firstFocus.requestFocus() }
+    }
     LazyColumn(
         modifier = Modifier
             .fillMaxHeight()
@@ -464,13 +471,28 @@ private fun TracksPanel(
     ) {
         if (playback.audioTracks.isNotEmpty()) {
             item { PanelHeader("Audio") }
-            items(playback.audioTracks, key = { "a${it.index}${it.group.hashCode()}" }) { track ->
-                PanelItem(track.label, selected = track.selected, onClick = { onSelect(track) })
+            // Keys by position: a track's group object changes when a track is picked, and a changed
+            // key recreates the row and drops the remote's focus.
+            itemsIndexed(playback.audioTracks, key = { i, _ -> "a$i" }) { i, track ->
+                PanelItem(
+                    track.label,
+                    selected = track.selected,
+                    onClick = { onSelect(track) },
+                    modifier = if (i == 0) Modifier.focusRequester(firstFocus) else Modifier,
+                )
             }
         }
         item { PanelHeader("Subtitles") }
-        item { PanelItem("Off", selected = playback.textTracks.none { it.selected }, onClick = onSubtitlesOff) }
-        items(playback.textTracks, key = { "t${it.index}${it.group.hashCode()}" }) { track ->
+        item {
+            PanelItem(
+                "Off",
+                selected = playback.textTracks.none { it.selected },
+                onClick = onSubtitlesOff,
+                modifier = if (playback.audioTracks.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier,
+            )
+        }
+        items(playback.textTracks.size, key = { "t$it" }) { i ->
+            val track = playback.textTracks[i]
             PanelItem(track.label, selected = track.selected, onClick = { onSelect(track) })
         }
         videoScaleItems(scale, onScale)
