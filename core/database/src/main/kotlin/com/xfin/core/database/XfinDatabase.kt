@@ -18,6 +18,7 @@ import com.xfin.core.database.entity.FavoriteEntity
 import com.xfin.core.database.entity.HiddenGroupEntity
 import com.xfin.core.database.entity.HistoryEntity
 import com.xfin.core.database.entity.ProgramEntity
+import com.xfin.core.database.entity.ProgramFtsEntity
 import com.xfin.core.database.entity.SourceEntity
 
 @Database(
@@ -33,8 +34,9 @@ import com.xfin.core.database.entity.SourceEntity
         StagedChannelEntity::class,
         VodItemEntity::class,
         VodProgressEntity::class,
+        ProgramFtsEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2)],
 )

@@ -9,6 +9,7 @@ import com.xfin.core.database.MIGRATION_3_4
 import com.xfin.core.database.MIGRATION_4_5
 import com.xfin.core.database.MIGRATION_5_6
 import com.xfin.core.database.MIGRATION_6_7
+import com.xfin.core.database.MIGRATION_7_8
 import com.xfin.core.database.narrowFtsUpdateTriggers
 import com.xfin.core.database.XfinDatabase
 import com.xfin.core.database.dao.BackupDao
@@ -30,7 +31,7 @@ object DatabaseModule {
     @Singleton
     fun database(@ApplicationContext context: Context): XfinDatabase =
         Room.databaseBuilder(context, XfinDatabase::class.java, "xfin.db")
-            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
             .addCallback(
                 object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) = narrowFtsUpdateTriggers(db)

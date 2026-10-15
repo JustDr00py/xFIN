@@ -243,6 +243,23 @@ data class ProgramEntity(
     val episode: String? = null,
 )
 
+/**
+ * Word index of the current guides' program titles, for search. Standalone (not kept in sync by
+ * triggers, which would slow every guide import); rebuilt in one pass after each import.
+ */
+@Fts4(tokenizer = FtsOptions.TOKENIZER_UNICODE61)
+@Entity(tableName = "programs_fts")
+data class ProgramFtsEntity(
+    @PrimaryKey @ColumnInfo(name = "rowid") val rowid: Long,
+    val title: String,
+)
+
+/** A program found by search, with one channel it airs on. */
+data class ProgramSearchRow(
+    val chId: Long,
+    @Embedded val program: ProgramEntity,
+)
+
 /** Guide channels of a source with normalized display names, used to link playlist channels. */
 @Entity(
     tableName = "epg_channels",

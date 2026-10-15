@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import com.xfin.core.database.entity.EpgChannelEntity
 import com.xfin.core.database.entity.ProgramEntity
+import com.xfin.core.database.entity.ProgramSearchRow
 import kotlinx.coroutines.flow.Flow
 
 private const val CURRENT = "JOIN sources s ON s.id = p.sourceId AND s.epgGeneration = p.generation"
@@ -32,6 +33,32 @@ interface ProgramDao {
         ORDER BY p.startAt LIMIT 2""",
     )
     suspend fun nowNext(sourceId: Long, channelId: String, now: Long): List<ProgramEntity>
+
+    // --- Search ---
+
+    @Query("DELETE FROM programs_fts")
+    suspend fun clearSearchIndex()
+
+    /** Indexes the titles of every source's current guide. */
+    @Query("INSERT INTO programs_fts(rowid, title) SELECT p.id, p.title FROM programs p $CURRENT")
+    suspend fun fillSearchIndex()
+
+    @Query("SELECT EXISTS(SELECT 1 FROM programs_fts LIMIT 1)")
+    suspend fun hasSearchIndex(): Boolean
+
+    /**
+     * Programs whose title matches [match] (an FTS4 expression) and that air between [from] and
+     * [to], each with a channel showing it; channels in hidden groups are left out.
+     */
+    @Query(
+        """SELECT c.id AS chId, p.* FROM programs_fts f
+        JOIN programs p ON p.id = f.rowid $CURRENT
+        JOIN channels c ON c.sourceId = p.sourceId AND c.epgId = p.channelId
+        WHERE programs_fts MATCH :match AND p.endAt > :from AND p.startAt < :to
+            AND c.groupName NOT IN (SELECT name FROM hidden_groups)
+        ORDER BY p.startAt, c.sortIndex LIMIT :limit""",
+    )
+    suspend fun search(match: String, from: Long, to: Long, limit: Int): List<ProgramSearchRow>
 
     @Query("SELECT * FROM programs WHERE id = :id")
     suspend fun get(id: Long): ProgramEntity?

@@ -130,3 +130,10 @@ internal val MIGRATION_6_7 = object : Migration(6, 7) {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_vod_progress_sourceId_updatedAt` ON `vod_progress` (`sourceId`, `updatedAt`)")
     }
 }
+
+/** Adds the program title search index; it is filled after the next guide import or first search. */
+internal val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS `programs_fts` USING FTS4(`title` TEXT NOT NULL, tokenize=unicode61)")
+    }
+}

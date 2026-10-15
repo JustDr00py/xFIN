@@ -51,6 +51,13 @@ import com.xfin.data.sources.ChannelRepository
 import com.xfin.data.sources.EpgRepository
 import com.xfin.core.model.Channel
 import com.xfin.core.model.ProgramSlot
+import com.xfin.core.model.Program
+import com.xfin.core.designsystem.component.formatTime
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.runtime.setValue
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
@@ -68,13 +75,18 @@ import kotlinx.coroutines.launch
 import androidx.navigation.toRoute
 import javax.inject.Inject
 
+/** A program found in the guide, with a channel showing it. */
+data class ProgramHit(val channel: Channel, val program: Program)
+
 data class SearchResults(
+    val onNow: List<ProgramHit> = emptyList(),
+    val later: List<ProgramHit> = emptyList(),
     val channels: List<Channel> = emptyList(),
     val movies: List<MediaItem> = emptyList(),
     val shows: List<MediaItem> = emptyList(),
     val episodes: List<MediaItem> = emptyList(),
 ) {
-    val isEmpty get() = channels.isEmpty() && movies.isEmpty() && shows.isEmpty() && episodes.isEmpty()
+    val isEmpty get() = onNow.isEmpty() && later.isEmpty() && channels.isEmpty() && movies.isEmpty() && shows.isEmpty() && episodes.isEmpty()
 }
 
 enum class SearchScope(val label: String) { LIBRARY("Movies & shows"), LIVE("Live TV"), ALL("All") }
@@ -111,16 +123,22 @@ class SearchViewModel @Inject constructor(
                 }
                 _state.value = _state.value.copy(searching = true)
                 val servers = if (scope == SearchScope.LIVE) emptyList() else jellyfin.observeServers().first()
-                val (found, live) = coroutineScope {
+                val now = System.currentTimeMillis()
+                val (found, live, programs) = coroutineScope {
                     val live = async {
                         if (scope == SearchScope.LIBRARY) emptyList() else runCatching { channels.search(term) }.getOrDefault(emptyList())
                     }
+                    val programs = async {
+                        if (scope == SearchScope.LIBRARY) emptyList() else runCatching { programHits(term, now) }.getOrDefault(emptyList())
+                    }
                     val media = servers.map { server -> async { runCatching { jellyfin.search(server.id, term) }.getOrDefault(emptyList()) } }
-                    media.awaitAll().flatten() to live.await()
+                    Triple(media.awaitAll().flatten(), live.await(), programs.await())
                 }
                 _state.value = _state.value.copy(
                     searching = false,
                     results = SearchResults(
+                        onNow = programs.filter { it.program.isAiring(now) },
+                        later = programs.filter { it.program.start > now },
                         channels = live,
                         movies = found.filter { it.kind == MediaKind.MOVIE },
                         shows = found.filter { it.kind == MediaKind.SERIES },
@@ -132,6 +150,13 @@ class SearchViewModel @Inject constructor(
     }
 
     suspend fun nowPlaying(channel: Channel, now: Long): ProgramSlot? = epg.nowPlaying(channel, now)
+
+    /** Guide programs matching [term] from now on, with their channels. */
+    private suspend fun programHits(term: String, now: Long): List<ProgramHit> {
+        val found = epg.searchPrograms(term, now)
+        val byId = channels.channels(found.map { it.first }.distinct()).associateBy { it.id }
+        return found.mapNotNull { (channelId, program) -> byId[channelId]?.let { ProgramHit(it, program) } }
+    }
 
     fun setScope(scope: SearchScope) {
         _scope.value = scope
@@ -155,6 +180,7 @@ internal fun SearchScreen(
     val isTv = LocalIsTv.current
     val focus = remember { FocusRequester() }
     val gutter = if (isTv) 40.dp else 16.dp
+    var details by remember { androidx.compose.runtime.mutableStateOf<ProgramHit?>(null) }
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -166,8 +192,8 @@ internal fun SearchScreen(
                     Text(
                         when (state.scope) {
                             SearchScope.LIBRARY -> "Movies, shows, episodes"
-                            SearchScope.LIVE -> "Live channels"
-                            SearchScope.ALL -> "Channels, movies, shows"
+                            SearchScope.LIVE -> "Channels and programs"
+                            SearchScope.ALL -> "Channels, programs, movies, shows"
                         },
                     )
                 },
@@ -211,8 +237,8 @@ internal fun SearchScreen(
                 },
                 message = when (state.scope) {
                     SearchScope.LIBRARY -> "Find movies, shows and episodes."
-                    SearchScope.LIVE -> "Find channels across your playlists."
-                    SearchScope.ALL -> "Find live channels, movies, shows and episodes in one place."
+                    SearchScope.LIVE -> "Find channels, and programs on now or coming up in the guide."
+                    SearchScope.ALL -> "Find live channels, programs, movies, shows and episodes in one place."
                 },
                 modifier = Modifier.fillMaxSize(),
             )
@@ -226,10 +252,20 @@ internal fun SearchScreen(
                 contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp),
                 verticalArrangement = Arrangement.spacedBy(22.dp),
             ) {
+                if (results.onNow.isNotEmpty()) {
+                    item(key = "On now") {
+                        ProgramSection("On now", results.onNow, gutter, isTv, now = remember { System.currentTimeMillis() }) { onPlayChannel(it.channel.id) }
+                    }
+                }
+                if (results.later.isNotEmpty()) {
+                    item(key = "Coming up") {
+                        ProgramSection("Coming up", results.later, gutter, isTv, now = remember { System.currentTimeMillis() }) { details = it }
+                    }
+                }
                 if (results.channels.isNotEmpty()) {
                     item(key = "Live TV") {
                         Column {
-                            Text("Live TV", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = gutter, bottom = 10.dp))
+                            Text("Channels", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = gutter, bottom = 10.dp))
                             LazyRow(contentPadding = PaddingValues(horizontal = gutter), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 items(results.channels, key = { "ch-${it.id}" }) { channel ->
                                     ChannelResult(channel, if (isTv) 220.dp else 168.dp, viewModel::nowPlaying) { onPlayChannel(channel.id) }
@@ -245,6 +281,105 @@ internal fun SearchScreen(
         }
     }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+
+    details?.let { hit ->
+        AlertDialog(
+            onDismissRequest = { details = null },
+            title = { Text(hit.program.title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "${hit.channel.name} · ${airingLabel(hit.program.start)} – ${formatTime(hit.program.end)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    listOfNotNull(hit.program.subtitle, hit.program.description).forEach {
+                        Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 8, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    details = null
+                    onPlayChannel(hit.channel.id)
+                }) { Text("Watch ${hit.channel.name}") }
+            },
+            dismissButton = { TextButton(onClick = { details = null }) { Text("Close") } },
+        )
+    }
+}
+
+/** A row of programs from the guide: what's on, where, and how far in (or when it starts). */
+@Composable
+private fun ProgramSection(
+    title: String,
+    hits: List<ProgramHit>,
+    gutter: androidx.compose.ui.unit.Dp,
+    isTv: Boolean,
+    now: Long,
+    onClick: (ProgramHit) -> Unit,
+) {
+    Column {
+        // The count hints that the row scrolls sideways (a phone shows two at a time).
+        Text("$title · ${hits.size}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(start = gutter, bottom = 10.dp))
+        LazyRow(contentPadding = PaddingValues(horizontal = gutter), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(hits, key = { "p-${it.program.id}" }) { hit -> ProgramResult(hit, if (isTv) 300.dp else 240.dp, now) { onClick(hit) } }
+        }
+    }
+}
+
+@Composable
+private fun ProgramResult(hit: ProgramHit, width: androidx.compose.ui.unit.Dp, now: Long, onClick: () -> Unit) {
+    val airing = hit.program.isAiring(now)
+    val tint = com.xfin.core.designsystem.component.rememberLogoTint(hit.channel.logoUrl)
+    val colors = MaterialTheme.colorScheme
+    com.xfin.core.designsystem.component.FocusSurface(onClick = onClick, focusedScale = 1.04f, modifier = Modifier.width(width)) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background((tint?.copy(alpha = if (airing) 0.3f else 0.15f) ?: Color.Transparent).compositeOver(colors.surfaceContainerHigh))
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                com.xfin.core.designsystem.component.ChannelLogo(hit.channel.name, hit.channel.logoUrl, Modifier.width(52.dp).aspectRatio(16f / 10f))
+                androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
+                Text(
+                    hit.channel.name,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                hit.program.title,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            )
+            Text(
+                if (airing) "Until ${formatTime(hit.program.end)}" else airingLabel(hit.program.start),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+            )
+            if (airing) com.xfin.core.designsystem.component.ProgressTrack(hit.program.progress(now), Modifier.fillMaxWidth())
+        }
+    }
+}
+
+/** "9:30 PM" today, "Tomorrow 9:30 PM", or "Thu 9:30 PM". */
+private fun airingLabel(time: Long): String {
+    val day = java.util.Calendar.getInstance().apply { timeInMillis = time }
+    val today = java.util.Calendar.getInstance()
+    val diff = day.get(java.util.Calendar.DAY_OF_YEAR) - today.get(java.util.Calendar.DAY_OF_YEAR) +
+        (day.get(java.util.Calendar.YEAR) - today.get(java.util.Calendar.YEAR)) * 365
+    val prefix = when (diff) {
+        0 -> ""
+        1 -> "Tomorrow "
+        else -> java.text.SimpleDateFormat("EEE ", java.util.Locale.getDefault()).format(day.time)
+    }
+    return prefix + formatTime(time)
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.section(

@@ -75,6 +75,27 @@ class EpgRepository @Inject internal constructor(
         return result
     }
 
+    /**
+     * Programs whose title matches [query], airing between now and three days ahead, each with the
+     * id of a channel showing it (one row per program), in start order.
+     */
+    suspend fun searchPrograms(query: String, now: Long = System.currentTimeMillis(), limit: Int = 120): List<Pair<Long, Program>> {
+        val match = ftsQuery(query) ?: return emptyList()
+        // Empty after the upgrade that added it, until the next guide import.
+        if (!programDao.hasSearchIndex()) rebuildSearchIndex()
+        return programDao.search(match, now, now + TimeUnit.DAYS.toMillis(SEARCH_DAYS), limit)
+            .distinctBy { it.program.id }
+            .map { it.chId to it.program.toModel() }
+    }
+
+    /** Re-indexes program titles in one pass; triggers on every insert would slow imports. */
+    private suspend fun rebuildSearchIndex() = Perf.time("guide search index") {
+        db.withTransaction {
+            programDao.clearSearchIndex()
+            programDao.fillSearchIndex()
+        }
+    }
+
     suspend fun nowNext(channel: Channel, now: Long = System.currentTimeMillis()): NowNext {
         val epgId = channel.epgId ?: return NowNext(null, null)
         val rows = programDao.nowNext(channel.sourceId, epgId, now).map { it.toModel() }
@@ -144,6 +165,7 @@ class EpgRepository @Inject internal constructor(
             Perf.time("guide cleanup #$sourceId") {
                 while (programDao.deleteOtherGenerations(sourceId, result.generation, 5_000) > 0) Unit
             }
+            rebuildSearchIndex()
         } catch (e: Exception) {
             sourceDao.markEpgFailed(sourceId, e.message ?: e::class.simpleName.orEmpty())
             throw e
@@ -256,6 +278,7 @@ class EpgRepository @Inject internal constructor(
         const val BATCH_SIZE = 1_000
         const val PAST_DAYS = 1L
         const val FUTURE_DAYS = 8L
+        const val SEARCH_DAYS = 3L
     }
 }
 
