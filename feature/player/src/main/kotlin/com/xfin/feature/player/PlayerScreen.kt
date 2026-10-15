@@ -127,11 +127,21 @@ internal fun PlayerScreen(
             .onPreviewKeyEvent { event ->
                 if (panelOpen || guideOpen || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (val code = event.key.nativeKeyCode) {
-                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> {
+                    // The remote's CH+/CH− always switch straight away.
+                    KeyEvent.KEYCODE_CHANNEL_UP -> {
                         viewModel.zap(+1); true
                     }
-                    KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                    KeyEvent.KEYCODE_CHANNEL_DOWN -> {
                         viewModel.zap(-1); true
+                    }
+                    // Up/down first bring up what's on; once it shows, they switch channels.
+                    KeyEvent.KEYCODE_DPAD_UP -> {
+                        if (overlayVisible) viewModel.zap(+1) else poke()
+                        true
+                    }
+                    KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        if (overlayVisible) viewModel.zap(-1) else poke()
+                        true
                     }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                         when {
