@@ -144,6 +144,21 @@ internal fun PlayerScreen(
             .focusRequester(focus)
             .focusable()
             .onPreviewKeyEvent { event ->
+                // TV: Back closes the innermost open panel. Handled here rather than with BackHandler:
+                // with focus on a panel item, Compose spends Back on clearing that focus.
+                if (isTv && event.key.nativeKeyCode == KeyEvent.KEYCODE_BACK && (panelOpen || guideOpen)) {
+                    if (event.type == KeyEventType.KeyUp) {
+                        when {
+                            categoriesOpen -> {
+                                categoriesOpen = false
+                                guideFocus++
+                            }
+                            panelOpen -> panelOpen = false
+                            else -> guideOpen = false
+                        }
+                    }
+                    return@onPreviewKeyEvent true
+                }
                 if (panelOpen || guideOpen || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (val code = event.key.nativeKeyCode) {
                     // The remote's CH+/CH− always switch straight away.

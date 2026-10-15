@@ -138,7 +138,24 @@ internal fun VodPlayerScreen(
             overlay = false
         }
     }
-    LaunchedEffect(panel) { if (!panel) runCatching { focus.requestFocus() } }
+    var panelWasOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(panel) {
+        if (panel) {
+            panelWasOpen = true
+            return@LaunchedEffect
+        }
+        val closedPanel = panelWasOpen
+        panelWasOpen = false
+        if (isTv && closedPanel) {
+            // Back from the panel lands on the controls again, not on nothing.
+            buttonsActive = true
+            interaction++
+            withFrameNanos { }
+            runCatching { playFocus.requestFocus() }
+        } else {
+            runCatching { focus.requestFocus() }
+        }
+    }
     BackHandler(enabled = panel) { panel = false }
 
     val presentation = rememberPresentationState(vod.player)
@@ -155,10 +172,13 @@ internal fun VodPlayerScreen(
             .focusRequester(focus)
             .focusable()
             .onPreviewKeyEvent { event ->
-                // TV: Back hides the controls first. Handled here rather than with a BackHandler,
-                // which didn't get Back once focus had moved off the first button.
-                if (!panel && isTv && buttonsActive && overlay && event.key.nativeKeyCode == KeyEvent.KEYCODE_BACK) {
-                    if (event.type == KeyEventType.KeyUp) overlay = false
+                // TV: Back closes the panel, then hides the controls, before leaving. Handled here
+                // rather than with BackHandler: with focus on a control, Compose spends Back on
+                // clearing that focus, so the handler never runs.
+                if (isTv && event.key.nativeKeyCode == KeyEvent.KEYCODE_BACK && (panel || (buttonsActive && overlay))) {
+                    if (event.type == KeyEventType.KeyUp) {
+                        if (panel) panel = false else overlay = false
+                    }
                     return@onPreviewKeyEvent true
                 }
                 if (panel || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
