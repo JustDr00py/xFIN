@@ -106,12 +106,15 @@ internal fun PlayerScreen(
     }
 
     FullscreenEffect(lockLandscape = !isTv)
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { player.pause() }
+    var stopped by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        stopped = true
+        player.pause()
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
-        if (!player.isPlaying && player.currentMediaItem != null) {
-            // Live jumps back to now; an archive resumes where it was.
-            if (viewModel.ui.value.catchup == null) player.seekToDefaultPosition()
-            player.play()
+        if (stopped) {
+            stopped = false
+            viewModel.resume()
         }
     }
     LaunchedEffect(ui.channel?.id) { if (ui.channel != null) poke() }

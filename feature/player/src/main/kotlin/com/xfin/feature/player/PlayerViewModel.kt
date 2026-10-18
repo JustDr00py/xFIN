@@ -296,6 +296,14 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch { channels.setFavorite(channel, updated.isFavorite) }
     }
 
+    /**
+     * Back from the background. A live stream left paused (e.g. through TV standby) is dead by now,
+     * and seeking it to the live edge buffers forever, so live is tuned afresh; an archive resumes.
+     */
+    fun resume() {
+        if (_ui.value.catchup == null) tune(delayMs = 0) else livePlayer.player.play()
+    }
+
     fun retry() {
         if (_ui.value.resolveError != null) tune(delayMs = 0) else livePlayer.retry()
     }
