@@ -12,5 +12,6 @@ dependencies {
     implementation(project(":data:jellyfin"))
     implementation(project(":data:library"))
     implementation(libs.media3.ui.compose)
+    implementation(libs.media3.ui)
     implementation(libs.paging.compose)
 }

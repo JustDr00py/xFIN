@@ -240,6 +240,7 @@ internal fun PlayerScreen(
         if (presentation.coverSurface) {
             Box(Modifier.fillMaxSize().background(Color.Black))
         }
+        Captions(player, Modifier.fillMaxSize())
         if (!inPip) VideoScaleLabel(scale, Modifier.align(Alignment.TopCenter).padding(top = 96.dp))
 
         if (playback.buffering && playback.error == null && ui.resolveError == null) {

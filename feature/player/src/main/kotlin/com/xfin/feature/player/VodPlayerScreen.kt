@@ -243,6 +243,7 @@ internal fun VodPlayerScreen(
                 .resizeWithContentScale(if (inPip) ContentScale.Fit else scale.value.contentScale, presentation.videoSizeDp),
         )
         if (presentation.coverSurface) Box(Modifier.fillMaxSize().background(Color.Black))
+        Captions(vod.player, Modifier.fillMaxSize())
         if (!inPip) VideoScaleLabel(scale, Modifier.align(Alignment.TopCenter).padding(top = 96.dp))
 
         if (playback.buffering && ui.error == null && playback.error == null) {
