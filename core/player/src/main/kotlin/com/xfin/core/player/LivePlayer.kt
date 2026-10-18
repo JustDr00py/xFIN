@@ -19,6 +19,7 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.UnrecognizedInputFormatException
+import androidx.media3.extractor.DefaultExtractorsFactory
 import com.xfin.core.model.PlayableStream
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -84,7 +85,16 @@ class LivePlayer @Inject constructor(
                 .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
                 .setEnableDecoderFallback(true),
         )
-        .setMediaSourceFactory(DefaultMediaSourceFactory(dataSources))
+        .setMediaSourceFactory(
+            DefaultMediaSourceFactory(
+                dataSources,
+                // IPTV restreams rarely declare their captions in the stream's tables, so a TS
+                // stream would offer none; assume broadcast CC (CEA-608) is carried in the video.
+                DefaultExtractorsFactory().setTsSubtitleFormats(
+                    listOf(Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA608).build()),
+                ),
+            ),
+        )
         .setLoadControl(
             DefaultLoadControl.Builder()
                 .setBufferDurationsMs(15_000, 50_000, 1_000, 2_500)
