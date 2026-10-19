@@ -8,6 +8,7 @@ import androidx.paging.map
 import com.xfin.core.database.dao.SourceDao
 import com.xfin.core.database.dao.VodDao
 import com.xfin.core.database.entity.SourceEntity
+import com.xfin.core.database.entity.VodFavoriteEntity
 import com.xfin.core.database.entity.VodItemEntity
 import com.xfin.core.database.entity.VodProgressEntity
 import com.xfin.core.model.MediaItem
@@ -212,7 +213,7 @@ class VodRepository @Inject internal constructor(
             is VodId.Movie -> {
                 val row = vodDao.get(sourceId, KIND_MOVIE, id.streamId) ?: throw IllegalStateException("This movie is no longer available")
                 val info = movieInfo(sourceId, id.streamId)
-                withProgress(sourceId, row.toItem(info))
+                withProgress(sourceId, row.toItem(info)).copy(isFavorite = vodDao.isFavorite(sourceId, KIND_MOVIE, id.streamId))
             }
             is VodId.Series, is VodId.Season -> {
                 val seriesId = (id as? VodId.Series)?.seriesId ?: (id as VodId.Season).seriesId
@@ -223,6 +224,7 @@ class VodRepository @Inject internal constructor(
                     backdropUrl = info?.backdrop ?: row.backdrop,
                     genres = (info?.genre ?: row.genre).splitGenres(),
                     year = row.year ?: info?.year,
+                    isFavorite = vodDao.isFavorite(sourceId, KIND_SERIES, seriesId),
                 )
             }
             is VodId.Episode -> episodes(sourceId, "xs:${id.seriesId}", "xs:${id.seriesId}:${id.season}")
@@ -284,6 +286,32 @@ class VodRepository @Inject internal constructor(
         val all = episodes(sourceId, seriesItemId, seriesItemId)
         val index = all.indexOfFirst { it.id == episodeItemId }
         return if (index >= 0) all.getOrNull(index + 1) else null
+    }
+
+    // --- Favorites ---
+
+    /** Movies and shows only; seasons and episodes aren't favorited on their own. */
+    suspend fun setFavorite(item: MediaItem, favorite: Boolean) {
+        val (kind, providerId) = when (val id = VodId.parse(item.id)) {
+            is VodId.Movie -> KIND_MOVIE to id.streamId
+            is VodId.Series -> KIND_SERIES to id.seriesId
+            else -> return
+        }
+        if (favorite) {
+            vodDao.addFavorite(VodFavoriteEntity(item.sourceId, kind, providerId, System.currentTimeMillis()))
+        } else {
+            vodDao.removeFavorite(item.sourceId, kind, providerId)
+        }
+    }
+
+    /** Favorite movies and shows, most recently added first. */
+    suspend fun favorites(sourceId: Long, limit: Int): List<MediaItem> =
+        vodDao.favorites(sourceId, null, limit).map { it.toItem().copy(isFavorite = true) }
+
+    fun pagedFavorites(sourceId: Long, kind: MediaKind): Flow<PagingData<MediaItem>> {
+        val k = if (kind == MediaKind.SERIES) KIND_SERIES else KIND_MOVIE
+        return Pager(PagingConfig(pageSize = 60, enablePlaceholders = true)) { vodDao.pageFavorites(sourceId, k) }
+            .flow.map { page -> page.map { it.toItem().copy(isFavorite = true) } }
     }
 
     // --- Playback & progress ---

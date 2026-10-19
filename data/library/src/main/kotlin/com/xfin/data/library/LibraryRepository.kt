@@ -65,9 +65,20 @@ class LibraryRepository @Inject constructor(
             jellyfin.pagedItems(sourceId, view, sort)
         }
 
-    /** All movies or all shows of a source. */
-    suspend fun pagedAll(sourceId: Long, kind: MediaKind, sort: LibrarySort): Flow<PagingData<MediaItem>> =
-        if (isVod(sourceId)) vod.paged(sourceId, kind, sort.toVod()) else jellyfin.pagedAll(sourceId, kind, sort)
+    /** All movies or all shows of a source; [favoritesOnly] narrows it to the user's favorites. */
+    suspend fun pagedAll(sourceId: Long, kind: MediaKind, sort: LibrarySort, favoritesOnly: Boolean = false): Flow<PagingData<MediaItem>> =
+        when {
+            !isVod(sourceId) -> jellyfin.pagedAll(sourceId, kind, sort, favoritesOnly)
+            favoritesOnly -> vod.pagedFavorites(sourceId, kind)
+            else -> vod.paged(sourceId, kind, sort.toVod())
+        }
+
+    /** Favorite movies and shows: Jellyfin's own (synced with its other apps), or kept on the device for Xtream. */
+    suspend fun favorites(sourceId: Long, limit: Int = 24): List<MediaItem> =
+        if (isVod(sourceId)) vod.favorites(sourceId, limit) else jellyfin.favorites(sourceId, limit)
+
+    suspend fun setFavorite(item: MediaItem, favorite: Boolean) =
+        if (isVod(item.sourceId)) vod.setFavorite(item, favorite) else jellyfin.setFavorite(item.sourceId, item.id, favorite)
 
     suspend fun search(sourceId: Long, term: String): List<MediaItem> =
         if (isVod(sourceId)) vod.search(sourceId, term) else jellyfin.search(sourceId, term)

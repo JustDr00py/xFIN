@@ -97,6 +97,22 @@ data class VodProgressEntity(
     val episodeNumber: Int? = null,
 )
 
+/** A movie or show marked favorite on a source that doesn't sync favorites itself (Xtream VOD). */
+@Entity(
+    tableName = "vod_favorites",
+    primaryKeys = ["sourceId", "kind", "providerId"],
+    foreignKeys = [
+        ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE),
+    ],
+)
+data class VodFavoriteEntity(
+    val sourceId: Long,
+    /** "movie" or "series", as in [VodItemEntity.kind]. */
+    val kind: String,
+    val providerId: Long,
+    val addedAt: Long,
+)
+
 @Entity(
     tableName = "channels",
     foreignKeys = [

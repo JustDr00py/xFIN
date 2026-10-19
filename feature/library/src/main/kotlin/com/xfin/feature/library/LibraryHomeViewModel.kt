@@ -63,6 +63,7 @@ class LibraryHomeViewModel @Inject constructor(private val jellyfin: LibraryRepo
             try {
                 val home = coroutineScope {
                     val resume = async { jellyfin.resume(server.id) }
+                    val favorites = async { runCatching { jellyfin.favorites(server.id) }.getOrDefault(emptyList()) }
                     val nextUp = async { jellyfin.nextUp(server.id) }
                     val views = jellyfin.views(server.id)
                     val latest = views.map { view -> async { view to runCatching { jellyfin.latest(server.id, view.id) }.getOrDefault(emptyList()) } }
@@ -72,6 +73,7 @@ class LibraryHomeViewModel @Inject constructor(private val jellyfin: LibraryRepo
                         val resumeIds = resume.await().map { it.id }.toSet()
                         nextUp.await().filterNot { it.id in resumeIds }.takeIf { it.isNotEmpty() }
                             ?.let { add(HomeRow("nextup", "Next up", it, RowStyle.THUMB)) }
+                        favorites.await().takeIf { it.isNotEmpty() }?.let { add(HomeRow("favorites", "Favorites", it, RowStyle.POSTER)) }
                         latest.awaitAll().forEach { (view, items) ->
                             if (items.isNotEmpty()) add(HomeRow("latest-${view.id}", "Recently added in ${view.name}", items, RowStyle.POSTER))
                         }

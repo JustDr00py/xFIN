@@ -23,6 +23,7 @@ internal data class BackupData(
     val history: List<BackupChannelRef> = emptyList(),
     val hiddenGroups: List<String> = emptyList(),
     val vodProgress: List<BackupVodProgress> = emptyList(),
+    val vodFavorites: List<BackupVodFavorite> = emptyList(),
     /** SharedPreferences files by name; only string values are kept. */
     val preferences: Map<String, Map<String, String>> = emptyMap(),
 )
@@ -66,6 +67,9 @@ internal data class BackupVodProgress(
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
 )
+
+@Serializable
+internal data class BackupVodFavorite(val sourceId: Long, val kind: String, val providerId: Long, val addedAt: Long)
 
 /** The file on disk: a small readable header around the encrypted [BackupData]. */
 @Serializable

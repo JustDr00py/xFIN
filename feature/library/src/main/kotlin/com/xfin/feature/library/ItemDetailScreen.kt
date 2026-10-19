@@ -26,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
@@ -37,6 +39,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -181,7 +184,7 @@ internal fun ItemDetailScreen(
                         VersionDropdown(selected, target.versions.size) { picking = target }
                         Spacer(Modifier.height(12.dp))
                     }
-                    Actions(item, state.upNext, playFocus, play, viewModel::togglePlayed)
+                    Actions(item, state.upNext, playFocus, play, viewModel::togglePlayed, viewModel::toggleFavorite)
                     item.overview?.let { Overview(it, Modifier.padding(top = 20.dp)) }
                 }
             }
@@ -253,6 +256,7 @@ private fun Actions(
     playFocus: FocusRequester,
     onPlay: (MediaItem, Long) -> Unit,
     onTogglePlayed: () -> Unit,
+    onToggleFavorite: () -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         // Series play their next episode; everything else plays itself.
@@ -284,6 +288,18 @@ private fun Actions(
             Icon(if (item.played) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked, null)
             Spacer(Modifier.width(6.dp))
             Text(if (item.played) "Watched" else "Mark watched")
+        }
+        // Movies and shows; an episode's favorite belongs to its show.
+        if (item.kind == MediaKind.MOVIE || item.kind == MediaKind.SERIES) {
+            FilledTonalButton(onClick = onToggleFavorite) {
+                Icon(
+                    if (item.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    null,
+                    tint = if (item.isFavorite) XfinColors.Favorite else LocalContentColor.current,
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(if (item.isFavorite) "Favorite" else "Add to favorites")
+            }
         }
     }
     if (item.canResume && item.kind != MediaKind.SERIES) {

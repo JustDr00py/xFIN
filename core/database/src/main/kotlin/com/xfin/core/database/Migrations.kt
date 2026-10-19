@@ -137,3 +137,14 @@ internal val MIGRATION_7_8 = object : Migration(7, 8) {
         db.execSQL("CREATE VIRTUAL TABLE IF NOT EXISTS `programs_fts` USING FTS4(`title` TEXT NOT NULL, tokenize=unicode61)")
     }
 }
+
+/** v9: favorite movies and shows for Xtream VOD (Jellyfin keeps its own on the server). */
+internal val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `vod_favorites` (`sourceId` INTEGER NOT NULL, `kind` TEXT NOT NULL, " +
+                "`providerId` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL, PRIMARY KEY(`sourceId`, `kind`, `providerId`), " +
+                "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+    }
+}

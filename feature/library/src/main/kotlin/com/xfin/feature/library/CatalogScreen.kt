@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Sort
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.VideoLibrary
@@ -26,6 +29,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,21 +41,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.xfin.core.designsystem.component.EmptyState
 import com.xfin.core.designsystem.component.LocalIsTv
+import com.xfin.core.designsystem.theme.XfinColors
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
 import com.xfin.core.model.Source
-import com.xfin.data.library.LibraryRepository
 import com.xfin.data.jellyfin.LibrarySort
+import com.xfin.data.library.LibraryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,11 +68,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import javax.inject.Inject
 
 /** Every movie or every show across a server's libraries, like UHF's Movies and TV Shows tabs. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -73,6 +81,8 @@ class CatalogViewModel @Inject constructor(private val jellyfin: LibraryReposito
     private val _sort = MutableStateFlow(LibrarySort.ADDED)
     val sort: StateFlow<LibrarySort> = _sort.asStateFlow()
     private val _server = MutableStateFlow<Long?>(null)
+    private val _favoritesOnly = MutableStateFlow(false)
+    val favoritesOnly: StateFlow<Boolean> = _favoritesOnly.asStateFlow()
 
     val servers: StateFlow<List<Source>?> = jellyfin.observeServers()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -82,9 +92,17 @@ class CatalogViewModel @Inject constructor(private val jellyfin: LibraryReposito
         chosen?.takeIf { id -> list?.any { it.id == id } == true } ?: list?.firstOrNull()?.id
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val items: Flow<PagingData<MediaItem>> = combine(server, kind, _sort) { s, k, o -> Triple(s, k, o) }
-        .flatMapLatest { (s, k, o) -> if (s == null) emptyFlow() else kotlinx.coroutines.flow.flow { emitAll(jellyfin.pagedAll(s, k, o)) } }
+    val items: Flow<PagingData<MediaItem>> = combine(server, kind, _sort, _favoritesOnly) { s, k, o, f -> Query(s, k, o, f) }
+        .flatMapLatest { q ->
+            if (q.server == null) emptyFlow() else kotlinx.coroutines.flow.flow { emitAll(jellyfin.pagedAll(q.server, q.kind, q.sort, q.favoritesOnly)) }
+        }
         .cachedIn(viewModelScope)
+
+    private data class Query(val server: Long?, val kind: MediaKind, val sort: LibrarySort, val favoritesOnly: Boolean)
+
+    fun toggleFavorites() {
+        _favoritesOnly.value = !_favoritesOnly.value
+    }
 
     fun setKind(value: MediaKind) {
         kind.value = value
@@ -112,7 +130,10 @@ internal fun CatalogScreen(
     val servers by viewModel.servers.collectAsStateWithLifecycle()
     val server by viewModel.server.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
+    val favoritesOnly by viewModel.favoritesOnly.collectAsStateWithLifecycle()
     val items = viewModel.items.collectAsLazyPagingItems()
+    // Favorites may have changed on a title's page (or in another Jellyfin app).
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (favoritesOnly) items.refresh() }
     val isTv = LocalIsTv.current
     val title = if (kind == MediaKind.SERIES) "Series" else "Movies"
 
@@ -136,6 +157,13 @@ internal fun CatalogScreen(
             Text(title, style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
+            IconButton(onClick = viewModel::toggleFavorites) {
+                Icon(
+                    if (favoritesOnly) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                    if (favoritesOnly) "Show all" else "Show favorites",
+                    tint = if (favoritesOnly) XfinColors.Favorite else LocalContentColor.current,
+                )
+            }
             SortMenu(sort, viewModel::sortBy)
             IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
         }
@@ -164,6 +192,16 @@ internal fun CatalogScreen(
             verticalArrangement = Arrangement.spacedBy(if (isTv) 24.dp else 16.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
+            if (favoritesOnly && items.itemCount == 0 && items.loadState.refresh is LoadState.NotLoading) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        "No favorite ${title.lowercase()} yet. Open one and choose Add to favorites.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 24.dp),
+                    )
+                }
+            }
             items(items.itemCount, key = items.itemKey { "${it.sourceId}-${it.id}" }) { index ->
                 val item = items[index]
                 if (item != null) {

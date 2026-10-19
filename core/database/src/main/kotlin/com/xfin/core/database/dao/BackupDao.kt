@@ -7,6 +7,7 @@ import androidx.room.Query
 import com.xfin.core.database.entity.FavoriteEntity
 import com.xfin.core.database.entity.HiddenGroupEntity
 import com.xfin.core.database.entity.HistoryEntity
+import com.xfin.core.database.entity.VodFavoriteEntity
 import com.xfin.core.database.entity.VodProgressEntity
 
 /** The user's own state (everything that can't be re-downloaded from a source), for backups. */
@@ -24,6 +25,9 @@ interface BackupDao {
     @Query("SELECT * FROM vod_progress")
     suspend fun vodProgress(): List<VodProgressEntity>
 
+    @Query("SELECT * FROM vod_favorites")
+    suspend fun vodFavorites(): List<VodFavoriteEntity>
+
     // Restores merge: what's already on the device wins.
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -37,4 +41,7 @@ interface BackupDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertVodProgress(rows: List<VodProgressEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertVodFavorites(rows: List<VodFavoriteEntity>)
 }

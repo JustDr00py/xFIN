@@ -5,6 +5,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.xfin.core.database.entity.VodFavoriteEntity
 import com.xfin.core.database.entity.VodItemEntity
 import com.xfin.core.database.entity.VodProgressEntity
 import kotlinx.coroutines.flow.Flow
@@ -59,6 +60,31 @@ interface VodDao {
         vodUpdatedAt = :at WHERE id = :sourceId""",
     )
     suspend fun swap(sourceId: Long, generation: Int, movies: Int, series: Int, at: Long)
+
+    // --- Favorites ---
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addFavorite(favorite: VodFavoriteEntity)
+
+    @Query("DELETE FROM vod_favorites WHERE sourceId = :sourceId AND kind = :kind AND providerId = :providerId")
+    suspend fun removeFavorite(sourceId: Long, kind: String, providerId: Long)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM vod_favorites WHERE sourceId = :sourceId AND kind = :kind AND providerId = :providerId)")
+    suspend fun isFavorite(sourceId: Long, kind: String, providerId: Long): Boolean
+
+    /** Favorites still in the catalogue, most recently added first; [kind] null means movies and shows. */
+    @Query(
+        "SELECT v.* FROM vod_items v $CURRENT JOIN vod_favorites f ON f.sourceId = v.sourceId AND f.kind = v.kind " +
+            "AND f.providerId = v.providerId WHERE v.sourceId = :sourceId AND (:kind IS NULL OR v.kind = :kind) " +
+            "ORDER BY f.addedAt DESC LIMIT :limit",
+    )
+    suspend fun favorites(sourceId: Long, kind: String?, limit: Int): List<VodItemEntity>
+
+    @Query(
+        "SELECT v.* FROM vod_items v $CURRENT JOIN vod_favorites f ON f.sourceId = v.sourceId AND f.kind = v.kind " +
+            "AND f.providerId = v.providerId WHERE v.sourceId = :sourceId AND v.kind = :kind ORDER BY f.addedAt DESC",
+    )
+    fun pageFavorites(sourceId: Long, kind: String): PagingSource<Int, VodItemEntity>
 
     // --- Progress ---
 

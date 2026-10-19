@@ -155,10 +155,37 @@ class JellyfinRepository @Inject constructor(
         }.flow
 
     /** Every movie (or every show) the user can see on a server, across all its libraries. */
-    fun pagedAll(sourceId: Long, kind: MediaKind, sort: LibrarySort): Flow<PagingData<MediaItem>> =
+    fun pagedAll(sourceId: Long, kind: MediaKind, sort: LibrarySort, favoritesOnly: Boolean = false): Flow<PagingData<MediaItem>> =
         Pager(PagingConfig(pageSize = 60, initialLoadSize = 60, enablePlaceholders = true)) {
-            ItemsPagingSource(sourceId, parentId = null, types = listOf(if (kind == MediaKind.SERIES) BaseItemKind.SERIES else BaseItemKind.MOVIE), sort)
+            ItemsPagingSource(
+                sourceId,
+                parentId = null,
+                types = listOf(if (kind == MediaKind.SERIES) BaseItemKind.SERIES else BaseItemKind.MOVIE),
+                sort = sort,
+                isFavorite = favoritesOnly.takeIf { it },
+            )
         }.flow
+
+    /** The user's favorite movies and shows on a server. */
+    suspend fun favorites(sourceId: Long, limit: Int = 24): List<MediaItem> = call(sourceId) { c ->
+        c.api.libraryApi.getItems(
+            userId = c.userId,
+            includeItemTypes = listOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
+            recursive = true,
+            isFavorite = true,
+            sortBy = listOf(ItemSortBy.SORT_NAME),
+            limit = limit,
+            fields = ROW_FIELDS,
+            enableUserData = true,
+        ).content.items.map { it.toMediaItem(c.api, sourceId) }
+    }
+
+    suspend fun setFavorite(sourceId: Long, itemId: String, favorite: Boolean) = call(sourceId) { c ->
+        val id = UUID.fromString(itemId)
+        if (favorite) c.api.userDataApi.markFavoriteItem(itemId = id, userId = c.userId)
+        else c.api.userDataApi.unmarkFavoriteItem(itemId = id, userId = c.userId)
+        Unit
+    }
 
     /** Movies, shows and episodes matching [term], best matches first. */
     suspend fun search(sourceId: Long, term: String, limit: Int = 60): List<MediaItem> = call(sourceId) { c ->
@@ -362,6 +389,7 @@ class JellyfinRepository @Inject constructor(
         private val parentId: String?,
         private val types: List<BaseItemKind>,
         private val sort: LibrarySort,
+        private val isFavorite: Boolean? = null,
     ) : PagingSource<Int, MediaItem>() {
         override fun getRefreshKey(state: PagingState<Int, MediaItem>): Int? =
             state.anchorPosition?.let { (it - state.config.initialLoadSize / 2).coerceAtLeast(0) }
@@ -374,6 +402,7 @@ class JellyfinRepository @Inject constructor(
                     parentId = parentId?.let(UUID::fromString),
                     includeItemTypes = types,
                     recursive = types.isNotEmpty(),
+                    isFavorite = isFavorite,
                     sortBy = listOf(sort.by, ItemSortBy.SORT_NAME),
                     sortOrder = listOf(sort.order, SortOrder.ASCENDING),
                     startIndex = start,

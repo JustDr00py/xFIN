@@ -97,6 +97,16 @@ class ItemDetailViewModel @Inject constructor(
         }
     }
 
+    fun toggleFavorite() {
+        val item = _state.value.item ?: return
+        val favorite = !item.isFavorite
+        _state.update { it.copy(item = item.copy(isFavorite = favorite)) }
+        viewModelScope.launch {
+            runCatching { jellyfin.setFavorite(item, favorite) }
+                .onFailure { _state.update { s -> s.copy(item = s.item?.copy(isFavorite = !favorite)) } }
+        }
+    }
+
     fun togglePlayed() {
         val item = _state.value.item ?: return
         val played = !item.played

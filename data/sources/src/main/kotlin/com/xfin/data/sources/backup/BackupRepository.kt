@@ -11,6 +11,7 @@ import com.xfin.core.database.entity.FavoriteEntity
 import com.xfin.core.database.entity.HiddenGroupEntity
 import com.xfin.core.database.entity.HistoryEntity
 import com.xfin.core.database.entity.SourceEntity
+import com.xfin.core.database.entity.VodFavoriteEntity
 import com.xfin.core.database.entity.VodProgressEntity
 import com.xfin.core.model.SourceType
 import com.xfin.data.sources.SourceRepository
@@ -86,6 +87,7 @@ class BackupRepository @Inject internal constructor(
             history = backupDao.history().map { BackupChannelRef(it.sourceId, it.channelKey, it.watchedAt) },
             hiddenGroups = backupDao.hiddenGroups().map { it.name },
             vodProgress = backupDao.vodProgress().map { it.toBackup() },
+            vodFavorites = backupDao.vodFavorites().map { BackupVodFavorite(it.sourceId, it.kind, it.providerId, it.addedAt) },
             preferences = PREFERENCE_FILES.associateWith { name ->
                 context.getSharedPreferences(name, Context.MODE_PRIVATE).all
                     .mapNotNull { (key, value) -> (value as? String)?.let { key to it } }
@@ -139,6 +141,8 @@ class BackupRepository @Inject internal constructor(
         data.hiddenGroups.map(::HiddenGroupEntity).chunked(CHUNK).forEach { backupDao.insertHiddenGroups(it) }
         data.vodProgress.mapNotNull { p -> ids[p.sourceId]?.let { p.toEntity(it) } }
             .chunked(CHUNK).forEach { backupDao.insertVodProgress(it) }
+        data.vodFavorites.mapNotNull { f -> ids[f.sourceId]?.let { VodFavoriteEntity(it, f.kind, f.providerId, f.addedAt) } }
+            .chunked(CHUNK).forEach { backupDao.insertVodFavorites(it) }
         Merged(RestoreSummary(sourcesAdded = added, sourcesKept = kept, favorites = favorites.size), toImport)
     }
 
