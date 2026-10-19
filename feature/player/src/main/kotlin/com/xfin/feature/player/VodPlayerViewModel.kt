@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
@@ -82,6 +83,13 @@ class VodPlayerViewModel @Inject constructor(
         viewModelScope.launch {
             player.state.map { it.ended }.distinctUntilChanged().filter { it }.collect { report() }
         }
+        // A request that fails right as a title starts (typically the next episode, while the server
+        // or provider is still letting go of the last one) usually works a moment later: retry once.
+        viewModelScope.launch {
+            player.state.first { it.httpFailed }
+            delay(AUTO_RETRY_DELAY_MS)
+            retry()
+        }
         // Safety net: if this device can't decode the original, ask the server to transcode it.
         viewModelScope.launch {
             player.state.map { it.decodeFailed }.distinctUntilChanged().filter { it }.collect {
@@ -101,10 +109,31 @@ class VodPlayerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Asks the server for the stream again rather than replaying the old URL: a failed request
+     * usually means that session is gone (or the provider's connection is still taken), and a fresh
+     * one is what leaving and reopening the title would get.
+     */
     fun retry() {
         _ui.update { it.copy(error = null) }
         val s = stream ?: return
-        player.play(s.copy(startMs = player.state.value.positionMs))
+        val position = player.state.value.positionMs.takeIf { it > 0 } ?: s.startMs
+        viewModelScope.launch {
+            try {
+                val fresh = jellyfin.playback(
+                    route.sourceId,
+                    route.itemId,
+                    position,
+                    allowDirect = s.playMethod != "Transcode",
+                    mediaSourceId = s.mediaSourceId,
+                )
+                stream = fresh
+                player.play(fresh)
+                jellyfin.reportStart(fresh, position)
+            } catch (e: Exception) {
+                _ui.update { it.copy(error = e.message ?: "Couldn't play this title") }
+            }
+        }
     }
 
     private suspend fun report() {
@@ -129,5 +158,6 @@ class VodPlayerViewModel @Inject constructor(
 
     private companion object {
         const val PROGRESS_INTERVAL_MS = 10_000L
+        const val AUTO_RETRY_DELAY_MS = 2_000L
     }
 }

@@ -41,6 +41,8 @@ data class VodPlayerState(
     val error: String? = null,
     /** The device could not decode the stream; a server transcode may still work. */
     val decodeFailed: Boolean = false,
+    /** The server answered a request with an error status; asking for a new stream may work. */
+    val httpFailed: Boolean = false,
     val audioTracks: List<TrackOption> = emptyList(),
     val textTracks: List<TrackOption> = emptyList(),
 )
@@ -177,10 +179,12 @@ class VodPlayer @Inject constructor(
                     error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> "Can't reach the server. Check your connection."
                 error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ||
                     error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED -> "This device can't decode this video."
+                status != null -> "The server couldn't send this video (HTTP $status)."
                 else -> "Playback failed: ${error.errorCodeName}"
             }
             val decodeFailed = error.errorCode in PlaybackException.ERROR_CODE_DECODER_INIT_FAILED..PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED
-            _state.update { it.copy(buffering = false, error = message, decodeFailed = decodeFailed) }
+            val httpFailed = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+            _state.update { it.copy(buffering = false, error = message, decodeFailed = decodeFailed, httpFailed = httpFailed) }
         }
     }
 

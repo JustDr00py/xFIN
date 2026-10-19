@@ -181,7 +181,9 @@ internal fun VodPlayerScreen(
                     }
                     return@onPreviewKeyEvent true
                 }
-                if (panel || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                // With an error showing, OK and the arrows belong to its Retry / Close buttons.
+                val failed = ui.error != null || playback.error != null
+                if (panel || failed || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 if (isTv && buttonsActive && overlay) {
                     // The buttons have focus: let them take the arrows and OK; media keys still work.
                     return@onPreviewKeyEvent when (event.key.nativeKeyCode) {
