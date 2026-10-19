@@ -1,25 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A rounded screen with an "x" play mark. 108dp adaptive canvas, content inside the 66dp safe zone. -->
+<!-- The xFIN mark: a shark fin that is also a play button, riding a wave. Drawn from
+     branding/xFIN-icon.svg. 108dp adaptive canvas; the mark stays inside the
+     66dp safe circle so no launcher mask clips it. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FF7B93FF"
-        android:strokeWidth="4"
-        android:pathData="M34,36 h40 a6,6 0 0 1 6,6 v22 a6,6 0 0 1 -6,6 h-40 a6,6 0 0 1 -6,-6 v-22 a6,6 0 0 1 6,-6 z" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFF2F4F8"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:pathData="M45,45 L63,61 M63,45 L45,61" />
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FF7B93FF"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:pathData="M44,77 h20" />
+        android:fillColor="#FF7B93FF"
+        android:pathData="M38.14,32.61C42.24,30.44 51.33,35.5 57.09,40.04C62.99,44.65 70.09,50.93 75.09,55.6C78.29,58.55 78.23,61.04 74.96,63.28L60.42,72.44C55.49,75.51 51.78,75.45 48.13,74.04C41.34,71.1 35.52,71.61 30.52,76.03C32.63,69.62 37.25,65.14 42.24,62.45C47.17,59.83 52.29,59.57 55.37,62.58C52.93,61.56 51.33,62.45 50.56,63.73C49.48,65.72 50.44,67.9 52.29,68.34C53.96,68.79 56.13,67.96 58.38,66.81L71.37,59.25C72.33,58.74 72.27,57.78 71.37,57.27L58.57,49.52C57.54,48.88 56.84,49.39 56.84,50.41L56.84,61.75C55.43,58.48 52.42,57.2 48.96,57.27C43.9,57.2 39.04,60.02 34.81,64.82C38.65,59.32 42.94,53.68 43.07,46.76C43.26,40.87 41.34,36.07 38.14,32.61Z" />
 </vector>
