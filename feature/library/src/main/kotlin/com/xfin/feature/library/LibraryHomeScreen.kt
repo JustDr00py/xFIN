@@ -18,29 +18,30 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.ui.Alignment
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xfin.core.designsystem.component.EmptyState
+import com.xfin.core.designsystem.component.HeaderIconButton
 import com.xfin.core.designsystem.component.LocalIsTv
 import com.xfin.core.designsystem.component.shimmer
 import com.xfin.core.model.MediaKind
@@ -86,9 +87,9 @@ internal fun LibraryHomeScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Home", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
+            HeaderIconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
             // Phones and TVs reach Settings from the tabs; tablets' rails have it too.
-            if (isTv) IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
+            if (isTv) HeaderIconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
         }
     }
     val heroHeight = (LocalConfiguration.current.screenHeightDp * if (isTv) 0.62f else 0.58f).dp

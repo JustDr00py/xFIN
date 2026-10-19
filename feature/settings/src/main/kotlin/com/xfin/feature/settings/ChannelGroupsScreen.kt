@@ -12,14 +12,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.FilterAlt
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
-import androidx.compose.material.icons.rounded.FilterAlt
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
@@ -45,11 +46,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xfin.core.designsystem.component.LocalIsTv
+import com.xfin.core.designsystem.component.rememberTvTextField
+import com.xfin.core.designsystem.component.tvTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,11 +94,15 @@ internal fun ChannelGroupsScreen(onBack: () -> Unit, viewModel: ChannelGroupsVie
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            val keyboard = LocalSoftwareKeyboardController.current
+            val focusManager = LocalFocusManager.current
+            val isTv = LocalIsTv.current
             LazyColumn(
                 modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
             ) {
                 item {
+                    val tvField = rememberTvTextField()
                     OutlinedTextField(
                         value = q.text,
                         onValueChange = viewModel::setText,
@@ -104,7 +115,15 @@ internal fun ChannelGroupsScreen(onBack: () -> Unit, viewModel: ChannelGroupsVie
                         },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search, autoCorrectEnabled = false),
-                        modifier = Modifier.fillMaxWidth(),
+                        // The list filters as you type; Search just puts the keyboard away.
+                        keyboardActions = KeyboardActions(
+                            onSearch = {
+                                keyboard?.hide()
+                                if (!isTv || !focusManager.moveFocus(FocusDirection.Down)) focusManager.clearFocus()
+                            },
+                        ),
+                        readOnly = tvField.readOnly,
+                        modifier = Modifier.fillMaxWidth().tvTextField(tvField),
                     )
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -43,10 +43,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xfin.core.designsystem.component.FocusSurface
+import com.xfin.core.designsystem.component.HeaderIconButton
 import com.xfin.core.designsystem.component.LocalIsTv
+import com.xfin.core.designsystem.theme.XfinColors
 import com.xfin.core.model.ChannelFilter
 import com.xfin.core.model.RefreshState
-import com.xfin.core.designsystem.theme.XfinColors
 
 /** Live TV: a grid of categories (like UHF); each opens the guide for its channels. */
 @Composable
@@ -69,7 +70,7 @@ internal fun LiveTvScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Live TV", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
+            HeaderIconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
         }
         AnimatedVisibility(refresh is RefreshState.Running) {
             LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp))

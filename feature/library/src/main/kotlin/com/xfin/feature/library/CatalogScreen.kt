@@ -52,6 +52,7 @@ import androidx.paging.cachedIn
 import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.xfin.core.designsystem.component.EmptyState
+import com.xfin.core.designsystem.component.HeaderIconButton
 import com.xfin.core.designsystem.component.LocalIsTv
 import com.xfin.core.designsystem.theme.XfinColors
 import com.xfin.core.model.MediaItem
@@ -156,8 +157,8 @@ internal fun CatalogScreen(
         ) {
             Text(title, style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.weight(1f))
-            IconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
-            IconButton(onClick = viewModel::toggleFavorites) {
+            HeaderIconButton(onClick = onSearch) { Icon(Icons.Rounded.Search, "Search") }
+            HeaderIconButton(onClick = viewModel::toggleFavorites) {
                 Icon(
                     if (favoritesOnly) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     if (favoritesOnly) "Show all" else "Show favorites",
@@ -165,7 +166,7 @@ internal fun CatalogScreen(
                 )
             }
             SortMenu(sort, viewModel::sortBy)
-            IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
+            HeaderIconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "Settings") }
         }
         if (list.size > 1) {
             LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -218,7 +219,7 @@ internal fun CatalogScreen(
 internal fun SortMenu(sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort") }
+        HeaderIconButton(onClick = { open = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "Sort") }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             LibrarySort.entries.forEach { option ->
                 DropdownMenuItem(

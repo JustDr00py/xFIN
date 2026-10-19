@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xfin.core.designsystem.component.LocalIsTv
+import com.xfin.core.designsystem.component.rememberTvTextField
+import com.xfin.core.designsystem.component.tvTextField
 import com.xfin.core.model.XtreamOutput
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -233,6 +235,7 @@ private fun XtreamForm(state: AddSourceUiState, viewModel: AddSourceViewModel) {
         keyboardType = KeyboardType.Uri,
     )
     Field("Username", state.username, { viewModel.update { copy(username = it) } })
+    val tvField1 = rememberTvTextField()
     OutlinedTextField(
         value = state.password,
         onValueChange = { viewModel.update { copy(password = it) } },
@@ -249,7 +252,8 @@ private fun XtreamForm(state: AddSourceUiState, viewModel: AddSourceViewModel) {
                 )
             }
         },
-        modifier = Modifier.fillMaxWidth(),
+        readOnly = tvField1.readOnly,
+        modifier = Modifier.fillMaxWidth().tvTextField(tvField1),
     )
     if (state.editing) {
         Field(
@@ -299,6 +303,7 @@ private fun Field(
     placeholder: String? = null,
     keyboardType: KeyboardType = KeyboardType.Text,
 ) {
+    val tvField2 = rememberTvTextField()
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -306,6 +311,7 @@ private fun Field(
         placeholder = placeholder?.let { { Text(it) } },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Next, autoCorrectEnabled = false),
-        modifier = Modifier.fillMaxWidth(),
+        readOnly = tvField2.readOnly,
+        modifier = Modifier.fillMaxWidth().tvTextField(tvField2),
     )
 }

@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xfin.core.designsystem.component.LocalIsTv
+import com.xfin.core.designsystem.component.rememberTvTextField
+import com.xfin.core.designsystem.component.tvTextField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,6 +110,7 @@ private fun ServerStep(state: AddJellyfinState, viewModel: AddJellyfinViewModel)
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        val tvField1 = rememberTvTextField()
         OutlinedTextField(
             value = state.address,
             onValueChange = viewModel::setAddress,
@@ -116,7 +119,8 @@ private fun ServerStep(state: AddJellyfinState, viewModel: AddJellyfinViewModel)
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go, autoCorrectEnabled = false),
             keyboardActions = KeyboardActions(onGo = { viewModel.connect() }),
-            modifier = Modifier.fillMaxWidth(),
+            readOnly = tvField1.readOnly,
+            modifier = Modifier.fillMaxWidth().tvTextField(tvField1),
         )
         Button(
             onClick = viewModel::connect,
@@ -157,14 +161,17 @@ private fun SignInStep(state: AddJellyfinState, viewModel: AddJellyfinViewModel)
             return@Column
         }
 
+        val tvField2 = rememberTvTextField()
         OutlinedTextField(
             value = state.username,
             onValueChange = viewModel::setUsername,
             label = { Text("Username") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next, autoCorrectEnabled = false),
-            modifier = Modifier.fillMaxWidth(),
+            readOnly = tvField2.readOnly,
+            modifier = Modifier.fillMaxWidth().tvTextField(tvField2),
         )
+        val tvField3 = rememberTvTextField()
         OutlinedTextField(
             value = state.password,
             onValueChange = viewModel::setPassword,
@@ -178,7 +185,8 @@ private fun SignInStep(state: AddJellyfinState, viewModel: AddJellyfinViewModel)
                     Icon(if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, if (showPassword) "Hide password" else "Show password")
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
+            readOnly = tvField3.readOnly,
+            modifier = Modifier.fillMaxWidth().tvTextField(tvField3),
         )
         Button(
             onClick = viewModel::signIn,
