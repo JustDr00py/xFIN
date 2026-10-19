@@ -1,64 +1,70 @@
 package com.xfin.feature.library
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SearchOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
 import com.xfin.core.designsystem.component.EmptyState
 import com.xfin.core.designsystem.component.LocalIsTv
+import com.xfin.core.designsystem.component.formatTime
+import com.xfin.core.model.Channel
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
+import com.xfin.core.model.Program
+import com.xfin.core.model.ProgramSlot
 import com.xfin.data.library.LibraryRepository
 import com.xfin.data.sources.ChannelRepository
 import com.xfin.data.sources.EpgRepository
-import com.xfin.core.model.Channel
-import com.xfin.core.model.ProgramSlot
-import com.xfin.core.model.Program
-import com.xfin.core.designsystem.component.formatTime
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
-import androidx.compose.foundation.background
-import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.runtime.setValue
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -72,8 +78,6 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import androidx.navigation.toRoute
-import javax.inject.Inject
 
 /** A program found in the guide, with a channel showing it. */
 data class ProgramHit(val channel: Channel, val program: Program)
@@ -85,6 +89,8 @@ data class SearchResults(
     val movies: List<MediaItem> = emptyList(),
     val shows: List<MediaItem> = emptyList(),
     val episodes: List<MediaItem> = emptyList(),
+    /** Source names by id; empty with a single source, where a badge would say nothing. */
+    val sources: Map<Long, String> = emptyMap(),
 ) {
     val isEmpty get() = onNow.isEmpty() && later.isEmpty() && channels.isEmpty() && movies.isEmpty() && shows.isEmpty() && episodes.isEmpty()
 }
@@ -143,6 +149,7 @@ class SearchViewModel @Inject constructor(
                         movies = found.filter { it.kind == MediaKind.MOVIE },
                         shows = found.filter { it.kind == MediaKind.SERIES },
                         episodes = found.filter { it.kind == MediaKind.EPISODE },
+                        sources = if (servers.size > 1) servers.associate { it.id to it.name } else emptyMap(),
                     ),
                 )
             }
@@ -179,6 +186,8 @@ internal fun SearchScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val isTv = LocalIsTv.current
     val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val gutter = if (isTv) 40.dp else 16.dp
     var details by remember { androidx.compose.runtime.mutableStateOf<ProgramHit?>(null) }
 
@@ -205,6 +214,14 @@ internal fun SearchScreen(
                 },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                // Results follow the typing already; Search just puts the keyboard away. On TV,
+                // stepping focus down to the results is what closes it and leaves the remote there.
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        keyboard?.hide()
+                        if (!isTv || !focusManager.moveFocus(FocusDirection.Down)) focusManager.clearFocus()
+                    },
+                ),
                 shape = MaterialTheme.shapes.large,
                 colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent),
                 modifier = Modifier.weight(1f).focusRequester(focus),
@@ -274,9 +291,9 @@ internal fun SearchScreen(
                         }
                     }
                 }
-                section("Movies", results.movies, gutter) { item -> PosterCard(item, if (isTv) 160.dp else 116.dp, onClick = { onOpenItem(item.sourceId, item.id) }) }
-                section("Shows", results.shows, gutter) { item -> PosterCard(item, if (isTv) 160.dp else 116.dp, onClick = { onOpenItem(item.sourceId, item.id) }) }
-                section("Episodes", results.episodes, gutter) { item -> ThumbCard(item, if (isTv) 280.dp else 220.dp, onClick = { onOpenItem(item.sourceId, item.id) }) }
+                section("Movies", results.movies, gutter) { item -> PosterCard(item, if (isTv) 160.dp else 116.dp, onClick = { onOpenItem(item.sourceId, item.id) }, badge = results.sources[item.sourceId]) }
+                section("Shows", results.shows, gutter) { item -> PosterCard(item, if (isTv) 160.dp else 116.dp, onClick = { onOpenItem(item.sourceId, item.id) }, badge = results.sources[item.sourceId]) }
+                section("Episodes", results.episodes, gutter) { item -> ThumbCard(item, if (isTv) 280.dp else 220.dp, onClick = { onOpenItem(item.sourceId, item.id) }, badge = results.sources[item.sourceId]) }
             }
         }
     }

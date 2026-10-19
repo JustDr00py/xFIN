@@ -6,16 +6,18 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
-import com.xfin.data.library.LibraryRepository
-import com.xfin.data.jellyfin.VersionPreferences
 import com.xfin.core.model.MediaVersion
+import com.xfin.core.model.SourceType
+import com.xfin.data.jellyfin.VersionPreferences
+import com.xfin.data.library.LibraryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class ItemDetailState(
     val item: MediaItem? = null,
@@ -25,6 +27,8 @@ data class ItemDetailState(
     val episodes: List<MediaItem> = emptyList(),
     val episodesLoading: Boolean = false,
     val upNext: MediaItem? = null,
+    /** e.g. "blockbustr · Jellyfin" or "mmp · IPTV". */
+    val source: String? = null,
     val loading: Boolean = true,
     val error: String? = null,
 )
@@ -71,7 +75,9 @@ class ItemDetailViewModel @Inject constructor(
                     preselectSeason = item.id
                     item = jellyfin.item(sourceId, item.seriesId!!)
                 }
-                _state.update { it.copy(item = item, loading = false, error = null) }
+                val source = jellyfin.observeServers().first().firstOrNull { it.id == sourceId }
+                    ?.let { "${it.name} · ${if (it.type == SourceType.JELLYFIN) "Jellyfin" else "IPTV"}" }
+                _state.update { it.copy(item = item, source = source, loading = false, error = null) }
                 if (item.kind == MediaKind.SERIES) {
                     val seasons = jellyfin.seasons(sourceId, item.id)
                     val upNext = runCatching { jellyfin.seriesNextEpisode(sourceId, item.id) }.getOrNull()

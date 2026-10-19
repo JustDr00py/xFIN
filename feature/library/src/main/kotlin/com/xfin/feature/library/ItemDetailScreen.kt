@@ -1,10 +1,14 @@
 package com.xfin.feature.library
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,21 +28,25 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Replay
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -57,7 +65,10 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -176,6 +187,14 @@ internal fun ItemDetailScreen(
                             modifier = Modifier.padding(top = 4.dp),
                         )
                     }
+                    state.source?.let {
+                        Text(
+                            "From $it",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
                     Spacer(Modifier.height(20.dp))
                     val target = if (item.kind == MediaKind.SERIES) state.upNext else item
                     if (target != null && target.versions.size > 1) {
@@ -195,16 +214,33 @@ internal fun ItemDetailScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         items(state.seasons, key = { it.id }) { season ->
+                            val selected = season.id == state.selectedSeasonId
+                            val interaction = remember { MutableInteractionSource() }
+                            // A chip's own focus tint is too faint to follow from the couch: the
+                            // focused season turns solid light, the shown one keeps its color and check.
+                            val focused by interaction.collectIsFocusedAsState()
+                            val scale by animateFloatAsState(if (focused) 1.08f else 1f, label = "seasonFocus")
+                            val colors = MaterialTheme.colorScheme
                             FilterChip(
-                                selected = season.id == state.selectedSeasonId,
+                                selected = selected,
                                 onClick = { viewModel.selectSeason(season.id) },
-                                label = { Text(season.name) },
+                                label = { Text(season.name, fontWeight = if (focused || selected) FontWeight.SemiBold else null) },
+                                leadingIcon = if (selected) {
+                                    { Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }
+                                } else {
+                                    null
+                                },
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                    containerColor = if (focused) colors.onSurface else colors.surfaceContainerHigh,
+                                    labelColor = if (focused) colors.surface else colors.onSurface,
+                                    selectedContainerColor = if (focused) colors.onSurface else colors.primary,
+                                    selectedLabelColor = if (focused) colors.surface else colors.onPrimary,
+                                    selectedLeadingIconColor = if (focused) colors.primary else colors.onPrimary,
                                 ),
                                 border = null,
                                 shape = MaterialTheme.shapes.large,
+                                interactionSource = interaction,
+                                modifier = Modifier.graphicsLayer { scaleX = scale; scaleY = scale },
                             )
                         }
                     }
@@ -229,6 +265,34 @@ internal fun ItemDetailScreen(
         }
     }
     LaunchedEffect(item.id) { if (isTv) runCatching { playFocus.requestFocus() } }
+}
+
+/**
+ * A round icon-only action beside Play. [tint] colors the icon for an "on" state (Color.Unspecified
+ * keeps the normal content color). On TV the focused button turns solid light, like other focus.
+ */
+@Composable
+private fun ActionIconButton(onClick: () -> Unit, icon: ImageVector, description: String, tint: Color) {
+    val isTv = LocalIsTv.current
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val lit = isTv && focused
+    val scale by animateFloatAsState(if (lit) 1.12f else 1f, label = "actionFocus")
+    val colors = MaterialTheme.colorScheme
+    FilledTonalIconButton(
+        onClick = onClick,
+        interactionSource = interaction,
+        colors = IconButtonDefaults.filledTonalIconButtonColors(
+            containerColor = if (lit) colors.onSurface else colors.secondaryContainer,
+            contentColor = if (lit) colors.surface else colors.onSecondaryContainer,
+        ),
+        modifier = Modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        },
+    ) {
+        Icon(icon, contentDescription = description, tint = if (tint == Color.Unspecified) LocalContentColor.current else tint)
+    }
 }
 
 @Composable
@@ -258,7 +322,12 @@ private fun Actions(
     onTogglePlayed: () -> Unit,
     onToggleFavorite: () -> Unit,
 ) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Wraps on phones, where Play, From start, Mark watched and Favorite don't fit on one line.
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
         // Series play their next episode; everything else plays itself.
         val target = if (item.kind == MediaKind.SERIES) upNext else item
         if (target != null) {
@@ -284,22 +353,21 @@ private fun Actions(
                 }
             }
         }
-        FilledTonalButton(onClick = onTogglePlayed) {
-            Icon(if (item.played) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked, null)
-            Spacer(Modifier.width(6.dp))
-            Text(if (item.played) "Watched" else "Mark watched")
-        }
+        // Icons only, so the actions stay on one row on a phone.
+        ActionIconButton(
+            onClick = onTogglePlayed,
+            icon = if (item.played) Icons.Rounded.CheckCircle else Icons.Outlined.CheckCircle,
+            description = if (item.played) "Watched, mark unwatched" else "Mark watched",
+            tint = if (item.played) XfinColors.Watched else Color.Unspecified,
+        )
         // Movies and shows; an episode's favorite belongs to its show.
         if (item.kind == MediaKind.MOVIE || item.kind == MediaKind.SERIES) {
-            FilledTonalButton(onClick = onToggleFavorite) {
-                Icon(
-                    if (item.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    null,
-                    tint = if (item.isFavorite) XfinColors.Favorite else LocalContentColor.current,
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(if (item.isFavorite) "Favorite" else "Add to favorites")
-            }
+            ActionIconButton(
+                onClick = onToggleFavorite,
+                icon = if (item.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                description = if (item.isFavorite) "Remove from favorites" else "Add to favorites",
+                tint = if (item.isFavorite) XfinColors.Favorite else Color.Unspecified,
+            )
         }
     }
     if (item.canResume && item.kind != MediaKind.SERIES) {

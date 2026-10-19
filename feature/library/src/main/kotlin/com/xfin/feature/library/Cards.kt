@@ -63,12 +63,13 @@ internal fun Artwork(url: String?, contentDescription: String?, modifier: Modifi
 
 /** 2:3 poster for movies and shows. */
 @Composable
-internal fun PosterCard(item: MediaItem, width: Dp, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PosterCard(item: MediaItem, width: Dp, onClick: () -> Unit, modifier: Modifier = Modifier, badge: String? = null) {
     Column(if (width == Dp.Unspecified) modifier.fillMaxWidth() else modifier.width(width)) {
         FocusSurface(onClick = onClick, shape = MaterialTheme.shapes.medium, focusedScale = 1.06f) {
             Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
                 Artwork(item.posterUrl, item.name, Modifier.fillMaxSize(), fallback = item.name)
                 WatchedBadge(item, Modifier.align(Alignment.TopEnd))
+                badge?.let { SourceBadge(it, Modifier.align(Alignment.TopStart)) }
                 if (item.progress > 0f && !item.played) {
                     ProgressTrack(
                         item.progress,
@@ -93,12 +94,13 @@ internal fun PosterCard(item: MediaItem, width: Dp, onClick: () -> Unit, modifie
 
 /** 16:9 still for "continue watching", next up and episodes. */
 @Composable
-internal fun ThumbCard(item: MediaItem, width: Dp, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ThumbCard(item: MediaItem, width: Dp, onClick: () -> Unit, modifier: Modifier = Modifier, badge: String? = null) {
     Column(modifier.width(width)) {
         FocusSurface(onClick = onClick, shape = MaterialTheme.shapes.medium, focusedScale = 1.05f) {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
                 Artwork(item.thumbUrl ?: item.backdropUrl, item.name, Modifier.fillMaxSize(), fallback = item.seriesName ?: item.name)
                 WatchedBadge(item, Modifier.align(Alignment.TopEnd))
+                badge?.let { SourceBadge(it, Modifier.align(Alignment.TopStart)) }
                 if (item.progress > 0f && !item.played) {
                     ProgressTrack(
                         item.progress,
@@ -143,6 +145,24 @@ internal fun LibraryTile(view: LibraryView, width: Dp, onClick: () -> Unit) {
                 modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
             )
         }
+    }
+}
+
+/** Which source a card comes from, where results from several sources sit together. */
+@Composable
+private fun SourceBadge(name: String, modifier: Modifier) {
+    // At most 60% of the card, so the top-right watched / unwatched-count badge keeps its corner.
+    Box(modifier.fillMaxWidth(0.6f).padding(6.dp)) {
+        Text(
+            name,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .background(Color(0xCC000000), MaterialTheme.shapes.small)
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+        )
     }
 }
 

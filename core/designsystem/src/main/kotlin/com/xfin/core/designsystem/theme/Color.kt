@@ -22,6 +22,7 @@ internal object XfinPalette {
 object XfinColors {
     val Live = XfinPalette.Live
     val Favorite = XfinPalette.Gold
+    val Watched = Color(0xFF3DD68C)
     val Scrim = Color(0xCC000000)
     val ScrimLight = Color(0x66000000)
 }
