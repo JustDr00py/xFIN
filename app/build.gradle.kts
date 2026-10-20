@@ -28,7 +28,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.xfin.app"
+        applicationId = "io.github.justdr00py.xfin"
         versionCode = 3
         versionName = "0.3.0"
     }
