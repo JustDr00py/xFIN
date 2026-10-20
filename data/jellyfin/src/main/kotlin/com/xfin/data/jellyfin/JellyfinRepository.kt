@@ -238,17 +238,24 @@ class JellyfinRepository @Inject constructor(
         regular.firstOrNull { it.canResume } ?: regular.firstOrNull { !it.played } ?: regular.firstOrNull()
     }
 
-    /** The next episode in the same series after [episodeId], for "Up next" at the end of playback. */
+    /**
+     * The next episode in the same series after [episodeId], for "Up next" at the end of playback.
+     * After a regular episode, specials (season 0) the server places in between are skipped.
+     */
     suspend fun nextEpisode(sourceId: Long, seriesId: String, episodeId: String): MediaItem? = call(sourceId) { c ->
         val items = c.api.showApi.getEpisodes(
             seriesId = UUID.fromString(seriesId),
             userId = c.userId,
             startItemId = UUID.fromString(episodeId),
             isMissing = false,
-            limit = 2,
+            limit = 50,
             enableUserData = true,
         ).content.items
-        items.getOrNull(1)?.toMediaItem(c.api, sourceId)
+        val current = items.firstOrNull() ?: return@call null
+        val following = items.drop(1)
+        val next = if (current.parentIndexNumber == 0) following.firstOrNull()
+            else following.firstOrNull { it.parentIndexNumber != 0 }
+        next?.toMediaItem(c.api, sourceId)
     }
 
     suspend fun setPlayed(sourceId: Long, itemId: String, played: Boolean) = call(sourceId) { c ->
