@@ -42,4 +42,4 @@ If this policy changes, the updated version will be posted at this address with 
 
 ## Contact
 
-Questions about this policy: [contact email]
+Questions about this policy: phoramus@gmail.com
