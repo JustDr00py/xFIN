@@ -29,7 +29,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.justdr00py.xfin"
-        versionCode = 3
+        versionCode = 4
         versionName = "0.3.0"
     }
 

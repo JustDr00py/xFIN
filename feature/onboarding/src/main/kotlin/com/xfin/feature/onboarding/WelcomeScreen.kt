@@ -84,8 +84,8 @@ internal fun WelcomeScreen(onAddSource: (SourceKind) -> Unit, restoreAction: @Co
                 )
                 SourceOption(
                     icon = Icons.Rounded.Dns,
-                    title = "Xtream Codes",
-                    subtitle = "Sign in with server, username and password",
+                    title = "Provider login",
+                    subtitle = "Server address, username and password",
                     onClick = { onAddSource(SourceKind.XTREAM) },
                     modifier = itemModifier,
                 )

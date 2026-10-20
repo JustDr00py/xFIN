@@ -86,7 +86,7 @@ internal fun AddSourceScreen(
                         when {
                             state.editing -> "Edit source"
                             state.kind == SourceKind.M3U -> "Add M3U playlist"
-                            else -> "Add Xtream Codes"
+                            else -> "Add provider login"
                         },
                     )
                 },

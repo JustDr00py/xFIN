@@ -234,7 +234,7 @@ private fun SourceItem(
                 } else {
                     Text(
                         listOfNotNull(
-                            if (source.type == SourceType.XTREAM) "Xtream Codes" else "M3U",
+                            if (source.type == SourceType.XTREAM) "Provider login" else "M3U",
                             "${"%,d".format(source.channelCount)} channels",
                             source.vodMovieCount.takeIf { it > 0 }?.let { "${"%,d".format(it)} movies" },
                             source.vodSeriesCount.takeIf { it > 0 }?.let { "${"%,d".format(it)} series" },
