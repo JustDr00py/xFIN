@@ -4,6 +4,7 @@ import androidx.paging.PagingData
 import com.xfin.core.model.LibraryView
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
+import com.xfin.core.model.MediaSegment
 import com.xfin.core.model.Source
 import com.xfin.core.model.SourceType
 import com.xfin.core.model.VodStream
@@ -112,6 +113,10 @@ class LibraryRepository @Inject constructor(
     } else {
         jellyfin.playback(sourceId, itemId, startMs, allowDirect = allowDirect, mediaSourceId = mediaSourceId)
     }
+
+    /** Intro, recap and credits markers to offer skipping; provider VOD has none. */
+    suspend fun segments(sourceId: Long, itemId: String): List<MediaSegment> =
+        if (isVod(sourceId)) emptyList() else jellyfin.segments(sourceId, itemId)
 
     /** Whether a failed direct play can be retried as a server transcode. */
     suspend fun canTranscode(sourceId: Long): Boolean = !isVod(sourceId)

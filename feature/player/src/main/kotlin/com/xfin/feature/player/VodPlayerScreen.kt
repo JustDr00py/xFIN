@@ -35,9 +35,11 @@ import androidx.compose.material.icons.rounded.Forward10
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay10
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -160,6 +162,14 @@ internal fun VodPlayerScreen(
 
     val presentation = rememberPresentationState(vod.player)
     val inPip = rememberIsInPip()
+    // Skip intro / recap / credits: on its own for the first seconds of the segment, then with the
+    // controls. On TV it stands aside while the control buttons have focus.
+    val segment = ui.segments.skippableAt(playback.positionMs)
+    val skip = segment?.takeIf {
+        (overlay || playback.positionMs < it.startMs + SKIP_PROMPT_MS) &&
+            !(isTv && buttonsActive && overlay) && !panel && !inPip && !playback.ended &&
+            ui.error == null && playback.error == null
+    }
     val scale = rememberVideoScale()
     val enterPip = if (isTv) ({}) else PipEffect(presentation.videoSizeDp ?: androidx.compose.ui.geometry.Size.Zero, playback.playing) {
         vod.togglePlay()
@@ -195,6 +205,14 @@ internal fun VodPlayerScreen(
                         KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> { panel = true; true }
                         else -> { interaction++; false }
                     }
+                }
+                // OK presses the skip button while it's up; Play/Pause still pauses.
+                val ok = event.key.nativeKeyCode.let {
+                    it == KeyEvent.KEYCODE_DPAD_CENTER || it == KeyEvent.KEYCODE_ENTER || it == KeyEvent.KEYCODE_NUMPAD_ENTER
+                }
+                if (skip != null && ok) {
+                    vod.seekTo(skip.endMs)
+                    return@onPreviewKeyEvent true
                 }
                 when (event.key.nativeKeyCode) {
                     KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
@@ -265,6 +283,18 @@ internal fun VodPlayerScreen(
                 playFocus = playFocus,
                 onPip = enterPip,
                 onScale = { scale.cycle(); poke() },
+            )
+        }
+
+        if (skip != null) {
+            SkipButton(
+                label = skip.skipLabel,
+                onClick = { vod.seekTo(skip.endMs) },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .safeDrawingPadding()
+                    // Above the seek bar and TV buttons while the controls are up.
+                    .padding(end = 32.dp, bottom = if (!overlay) 48.dp else if (isTv) 150.dp else 110.dp),
             )
         }
 
@@ -464,6 +494,20 @@ private fun UpNext(next: MediaItem, onPlay: () -> Unit, onCancel: () -> Unit, mo
             TextButton(onClick = onCancel) { Text("Close") }
             Button(onClick = onPlay, modifier = Modifier.focusRequester(focus)) { Text("Play now") }
         }
+    }
+}
+
+/** On TV, OK presses it while the player keeps focus, so it's always drawn as the focused choice. */
+@Composable
+private fun SkipButton(label: String, onClick: () -> Unit, modifier: Modifier) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
+        modifier = modifier,
+    ) {
+        Icon(Icons.Rounded.SkipNext, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label)
     }
 }
 

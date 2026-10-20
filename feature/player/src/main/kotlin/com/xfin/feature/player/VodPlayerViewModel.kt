@@ -8,6 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.toRoute
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
+import com.xfin.core.model.MediaSegment
 import com.xfin.core.model.VodStream
 import com.xfin.core.player.VodPlayer
 import com.xfin.core.player.VodPlayerState
@@ -35,6 +36,8 @@ import javax.inject.Inject
 data class VodUiState(
     val item: MediaItem? = null,
     val upNext: MediaItem? = null,
+    /** Intro, recap and credits the player offers to skip. */
+    val segments: List<MediaSegment> = emptyList(),
     val error: String? = null,
 )
 
@@ -62,6 +65,8 @@ class VodPlayerViewModel @Inject constructor(
                 android.util.Log.i("xFIN-vod", "${s.playMethod} ${item.kind} ${s.url} subs=${s.subtitles.map { it.url }}")
                 player.play(s)
                 jellyfin.reportStart(s, route.startMs)
+                // Older servers have no segments endpoint: no skip button then, nothing else changes.
+                launch { _ui.update { it.copy(segments = runCatching { jellyfin.segments(route.sourceId, item.id) }.getOrDefault(emptyList())) } }
                 if (item.kind == MediaKind.EPISODE && item.seriesId != null) {
                     launch { _ui.update { it.copy(upNext = runCatching { jellyfin.nextEpisode(route.sourceId, item.seriesId!!, item.id) }.getOrNull()) } }
                 }

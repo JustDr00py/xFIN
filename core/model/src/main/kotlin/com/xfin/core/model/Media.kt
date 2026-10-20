@@ -55,6 +55,11 @@ data class MediaVersion(
     val details: String,
 )
 
+enum class SegmentType { INTRO, RECAP, OUTRO }
+
+/** A part of a title the player offers to skip, from the server's intro and credits markers. */
+data class MediaSegment(val type: SegmentType, val startMs: Long, val endMs: Long)
+
 /** A top-level library ("Movies", "Shows") on a server. */
 data class LibraryView(
     val id: String,

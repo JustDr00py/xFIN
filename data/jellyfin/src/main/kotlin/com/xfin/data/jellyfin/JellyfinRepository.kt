@@ -14,6 +14,8 @@ import com.xfin.core.model.ExternalSubtitle
 import com.xfin.core.model.LibraryView
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
+import com.xfin.core.model.MediaSegment
+import com.xfin.core.model.SegmentType
 import com.xfin.core.model.Source
 import com.xfin.core.model.SourceType
 import com.xfin.core.model.VodStream
@@ -24,6 +26,7 @@ import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
+import org.jellyfin.sdk.api.client.extensions.mediaSegmentApi
 import org.jellyfin.sdk.api.client.extensions.sessionApi
 import org.jellyfin.sdk.api.client.extensions.showApi
 import org.jellyfin.sdk.api.client.extensions.userDataApi
@@ -33,6 +36,7 @@ import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.ItemSortBy
+import org.jellyfin.sdk.model.api.MediaSegmentType
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.MediaType
 import org.jellyfin.sdk.model.api.PlayMethod
@@ -258,6 +262,17 @@ class JellyfinRepository @Inject constructor(
         next?.toMediaItem(c.api, sourceId)
     }
 
+    /**
+     * Intro, recap and credits markers for [itemId]. Jellyfin 10.10+ serves these once a detection
+     * plugin (such as Intro Skipper) has analysed the item; otherwise the list is empty.
+     */
+    suspend fun segments(sourceId: Long, itemId: String): List<MediaSegment> = call(sourceId) { c ->
+        c.api.mediaSegmentApi.getItemSegments(UUID.fromString(itemId), SEGMENT_TYPES.keys).content.items.mapNotNull { s ->
+            val type = SEGMENT_TYPES[s.type] ?: return@mapNotNull null
+            MediaSegment(type, s.startTicks / TICKS_PER_MS, s.endTicks / TICKS_PER_MS)
+        }
+    }
+
     suspend fun setPlayed(sourceId: Long, itemId: String, played: Boolean) = call(sourceId) { c ->
         val id = UUID.fromString(itemId)
         if (played) c.api.userDataApi.markPlayedItem(itemId = id, userId = c.userId)
@@ -478,5 +493,10 @@ class JellyfinRepository @Inject constructor(
 
     private companion object {
         val ROW_FIELDS = listOf(ItemFields.PRIMARY_IMAGE_ASPECT_RATIO)
+        val SEGMENT_TYPES = mapOf(
+            MediaSegmentType.INTRO to SegmentType.INTRO,
+            MediaSegmentType.RECAP to SegmentType.RECAP,
+            MediaSegmentType.OUTRO to SegmentType.OUTRO,
+        )
     }
 }
