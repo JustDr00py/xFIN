@@ -92,20 +92,22 @@ internal fun ItemDetailScreen(
     onBack: () -> Unit,
     viewModel: ItemDetailViewModel = hiltViewModel(),
 ) {
-    // The version is chosen up front from a dropdown next to Play (remembered per title), so Play
-    // always starts immediately.
+    // Play asks which version to use when a title has more than one; the last pick for that title
+    // is highlighted.
     val chosen by viewModel.chosen.collectAsStateWithLifecycle()
-    var picking by remember { mutableStateOf<MediaItem?>(null) }
+    var picking by remember { mutableStateOf<Pair<MediaItem, Long>?>(null) }
     val play: (MediaItem, Long) -> Unit = { target, startMs ->
-        onPlay(viewModel.sourceId, target.id, startMs, viewModel.versionFor(target)?.id)
+        if (target.versions.size > 1) picking = target to startMs
+        else onPlay(viewModel.sourceId, target.id, startMs, viewModel.versionFor(target)?.id)
     }
-    picking?.let { target ->
+    picking?.let { (target, startMs) ->
         VersionPicker(
             item = target,
             selectedId = chosen[target.id] ?: viewModel.versionFor(target)?.id,
             onPick = { version ->
                 viewModel.chooseVersion(target, version)
                 picking = null
+                onPlay(viewModel.sourceId, target.id, startMs, version.id)
             },
             onDismiss = { picking = null },
         )
@@ -196,13 +198,6 @@ internal fun ItemDetailScreen(
                         )
                     }
                     Spacer(Modifier.height(20.dp))
-                    val target = if (item.kind == MediaKind.SERIES) state.upNext else item
-                    if (target != null && target.versions.size > 1) {
-                        // Reading `chosen` keeps this in sync after a pick.
-                        val selected = chosen[target.id].let { viewModel.versionFor(target) }
-                        VersionDropdown(selected, target.versions.size) { picking = target }
-                        Spacer(Modifier.height(12.dp))
-                    }
                     Actions(item, state.upNext, playFocus, play, viewModel::togglePlayed, viewModel::toggleFavorite)
                     item.overview?.let { Overview(it, Modifier.padding(top = 20.dp)) }
                 }
@@ -435,27 +430,5 @@ private fun EpisodeRow(episode: MediaItem, gutter: androidx.compose.ui.unit.Dp, 
                 }
             }
         }
-    }
-}
-
-/** Shows the version Play will use; opens the version list. */
-@Composable
-private fun VersionDropdown(selected: com.xfin.core.model.MediaVersion?, count: Int, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = Modifier.widthIn(max = 520.dp)) {
-        Column(Modifier.weight(1f, fill = false)) {
-            Text(
-                "Version · $count available",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                selected?.name ?: "Default",
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Icon(Icons.Rounded.ExpandMore, "Choose version")
     }
 }
