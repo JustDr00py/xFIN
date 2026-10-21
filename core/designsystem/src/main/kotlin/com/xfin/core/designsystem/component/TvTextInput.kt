@@ -12,6 +12,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -43,6 +44,7 @@ class TvTextFieldState internal constructor(private val isTv: Boolean) {
     internal var focused = false
     internal val field = FocusRequester()
     internal var trailing: FocusRequester? = null
+    internal var onTrailingClick: (() -> Unit)? = null
 
     /** Pass as the text field's `readOnly`. */
     val readOnly: Boolean get() = isTv && !editing
@@ -71,11 +73,27 @@ fun Modifier.tvTextField(state: TvTextFieldState): Modifier {
             if (!it.isFocused) state.editing = false
         }
         .onPreviewKeyEvent { event ->
-            // Keys for a button inside the field (its trailing icon) are that button's own.
-            if (!state.focused) return@onPreviewKeyEvent false
             val code = event.key.nativeKeyCode
+            // Focus is on the button inside the field (its trailing icon). The field itself takes OK
+            // from a real remote to open the keyboard before the button sees it, so handle it here.
+            if (!state.focused) {
+                val click = state.onTrailingClick ?: return@onPreviewKeyEvent false
+                return@onPreviewKeyEvent when (code) {
+                    in OK_KEYS -> {
+                        if (event.type == KeyEventType.KeyUp) click()
+                        true
+                    }
+                    KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (event.type == KeyEventType.KeyDown) state.field.requestFocus()
+                        true
+                    }
+                    else -> false
+                }
+            }
             val trailing = state.trailing
-            if (code == KeyEvent.KEYCODE_DPAD_RIGHT && !state.editing && trailing != null) {
+            // Even after typing: the TV keyboard takes the D-pad while it's up, so Right only gets
+            // here once it's closed, and moving the cursor is no use from the couch.
+            if (code == KeyEvent.KEYCODE_DPAD_RIGHT && trailing != null) {
                 if (event.type == KeyEventType.KeyDown) trailing.requestFocus()
                 return@onPreviewKeyEvent true
             }
@@ -94,18 +112,16 @@ fun Modifier.tvTextField(state: TvTextFieldState): Modifier {
 @Composable
 fun PasswordVisibilityButton(shown: Boolean, onToggle: () -> Unit, field: TvTextFieldState) {
     val focus = remember { FocusRequester() }
+    val toggle by rememberUpdatedState(onToggle)
     DisposableEffect(field) {
         field.trailing = focus
-        onDispose { field.trailing = null }
+        field.onTrailingClick = { toggle() }
+        onDispose {
+            field.trailing = null
+            field.onTrailingClick = null
+        }
     }
-    HeaderIconButton(
-        onClick = onToggle,
-        modifier = Modifier.focusRequester(focus).onPreviewKeyEvent { event ->
-            val left = event.key.nativeKeyCode == KeyEvent.KEYCODE_DPAD_LEFT
-            if (left && event.type == KeyEventType.KeyDown) field.field.requestFocus()
-            left
-        },
-    ) {
+    HeaderIconButton(onClick = onToggle, modifier = Modifier.focusRequester(focus)) {
         Icon(
             if (shown) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
             contentDescription = if (shown) "Hide password" else "Show password",
