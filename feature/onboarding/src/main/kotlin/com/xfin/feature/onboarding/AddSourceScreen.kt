@@ -29,8 +29,6 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -64,6 +62,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xfin.core.designsystem.component.LocalIsTv
+import com.xfin.core.designsystem.component.MinimalScrollToFocus
+import com.xfin.core.designsystem.component.PasswordVisibilityButton
 import com.xfin.core.designsystem.component.rememberTvTextField
 import com.xfin.core.designsystem.component.tvTextField
 import com.xfin.core.model.XtreamOutput
@@ -104,51 +104,53 @@ internal fun AddSourceScreen(
                 .imePadding(),
             contentAlignment = Alignment.TopCenter,
         ) {
-            Column(
-                modifier = Modifier
-                    .widthIn(max = if (LocalIsTv.current) 720.dp else 560.dp)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                when (state.kind) {
-                    SourceKind.M3U -> M3uForm(state, viewModel)
-                    SourceKind.XTREAM -> XtreamForm(state, viewModel)
-                    SourceKind.JELLYFIN -> JellyfinForm(state, viewModel)
-                }
-
-                AnimatedVisibility(state.error != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.ErrorOutline, null, tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(8.dp))
-                        Text(state.error.orEmpty(), color = MaterialTheme.colorScheme.error)
-                    }
-                }
-
-                Spacer(Modifier.height(4.dp))
-                Button(
-                    onClick = viewModel::submit,
-                    enabled = state.canSubmit,
+            MinimalScrollToFocus {
+                Column(
                     modifier = Modifier
+                        .widthIn(max = if (LocalIsTv.current) 720.dp else 560.dp)
                         .fillMaxWidth()
-                        .height(52.dp),
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    if (state.importing) {
-                        CircularProgressIndicator(
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(18.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            if (state.imported > 0) "Importing… ${"%,d".format(state.imported)} channels" else "Connecting…",
-                        )
-                    } else {
-                        Text(if (state.editing) "Save" else "Add and import")
+                    when (state.kind) {
+                        SourceKind.M3U -> M3uForm(state, viewModel)
+                        SourceKind.XTREAM -> XtreamForm(state, viewModel)
+                        SourceKind.JELLYFIN -> JellyfinForm(state, viewModel)
                     }
+
+                    AnimatedVisibility(state.error != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.ErrorOutline, null, tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(8.dp))
+                            Text(state.error.orEmpty(), color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+                    Button(
+                        onClick = viewModel::submit,
+                        enabled = state.canSubmit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                    ) {
+                        if (state.importing) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(18.dp),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                if (state.imported > 0) "Importing… ${"%,d".format(state.imported)} channels" else "Connecting…",
+                            )
+                        } else {
+                            Text(if (state.editing) "Save" else "Add and import")
+                        }
+                    }
+                    Spacer(Modifier.height(24.dp))
                 }
-                Spacer(Modifier.height(24.dp))
             }
         }
     }
@@ -244,14 +246,7 @@ private fun XtreamForm(state: AddSourceUiState, viewModel: AddSourceViewModel) {
         visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { viewModel.submit() }),
-        trailingIcon = {
-            IconButton(onClick = { showPassword = !showPassword }) {
-                Icon(
-                    if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                    contentDescription = if (showPassword) "Hide password" else "Show password",
-                )
-            }
-        },
+        trailingIcon = { PasswordVisibilityButton(showPassword, { showPassword = !showPassword }, tvField1) },
         readOnly = tvField1.readOnly,
         modifier = Modifier.fillMaxWidth().tvTextField(tvField1),
     )
