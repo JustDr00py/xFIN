@@ -85,6 +85,9 @@ import com.xfin.core.designsystem.theme.XfinColors
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
 
+/** The version picker is open for [item]; [failedId] is set when it reopened after a failed playback. */
+private data class VersionChoice(val item: MediaItem, val startMs: Long, val failedId: String? = null)
+
 @Composable
 internal fun ItemDetailScreen(
     onOpenItem: (sourceId: Long, itemId: String) -> Unit,
@@ -92,20 +95,26 @@ internal fun ItemDetailScreen(
     onBack: () -> Unit,
     viewModel: ItemDetailViewModel = hiltViewModel(),
 ) {
-    // Play asks which version to use when a title has more than one; the last pick for that title
-    // is highlighted.
-    val chosen by viewModel.chosen.collectAsStateWithLifecycle()
-    var picking by remember { mutableStateOf<Pair<MediaItem, Long>?>(null) }
+    // Play asks which version to use when a title has more than one; the last one that played is
+    // highlighted. After a failed playback the player can send the user back here to pick another.
+    var picking by remember { mutableStateOf<VersionChoice?>(null) }
     val play: (MediaItem, Long) -> Unit = { target, startMs ->
-        if (target.versions.size > 1) picking = target to startMs
+        if (target.versions.size > 1) picking = VersionChoice(target, startMs)
         else onPlay(viewModel.sourceId, target.id, startMs, viewModel.versionFor(target)?.id)
     }
-    picking?.let { (target, startMs) ->
+    val versionRetry by viewModel.versionRetry.collectAsStateWithLifecycle()
+    LaunchedEffect(versionRetry) {
+        versionRetry?.let {
+            picking = VersionChoice(it.item, it.startMs, it.failedVersionId)
+            viewModel.versionRetryShown()
+        }
+    }
+    picking?.let { (target, startMs, failedId) ->
         VersionPicker(
             item = target,
-            selectedId = chosen[target.id] ?: viewModel.versionFor(target)?.id,
+            selectedId = viewModel.versionFor(target)?.id,
+            failedId = failedId,
             onPick = { version ->
-                viewModel.chooseVersion(target, version)
                 picking = null
                 onPlay(viewModel.sourceId, target.id, startMs, version.id)
             },

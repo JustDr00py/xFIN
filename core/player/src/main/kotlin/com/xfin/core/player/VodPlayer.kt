@@ -43,6 +43,8 @@ data class VodPlayerState(
     val decodeFailed: Boolean = false,
     /** The server answered a request with an error status; asking for a new stream may work. */
     val httpFailed: Boolean = false,
+    /** The server couldn't be reached at all; another version of the title won't help. */
+    val networkFailed: Boolean = false,
     val audioTracks: List<TrackOption> = emptyList(),
     val textTracks: List<TrackOption> = emptyList(),
 )
@@ -184,7 +186,11 @@ class VodPlayer @Inject constructor(
             }
             val decodeFailed = error.errorCode in PlaybackException.ERROR_CODE_DECODER_INIT_FAILED..PlaybackException.ERROR_CODE_DECODING_RESOURCES_RECLAIMED
             val httpFailed = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
-            _state.update { it.copy(buffering = false, error = message, decodeFailed = decodeFailed, httpFailed = httpFailed) }
+            val networkFailed = error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+            _state.update {
+                it.copy(buffering = false, error = message, decodeFailed = decodeFailed, httpFailed = httpFailed, networkFailed = networkFailed)
+            }
         }
     }
 

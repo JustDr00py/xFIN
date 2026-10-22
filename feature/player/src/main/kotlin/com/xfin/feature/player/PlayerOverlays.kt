@@ -427,6 +427,9 @@ internal fun ErrorCard(
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
     nextLabel: String = "Next",
+    /** An extra action between [nextLabel] and Retry, e.g. trying another version. */
+    altLabel: String? = null,
+    onAlt: () -> Unit = {},
 ) {
     val focus = remember { FocusRequester() }
     // Compact single row so the channel info underneath stays readable in landscape.
@@ -448,6 +451,10 @@ internal fun ErrorCard(
         Text(message, color = Color.White, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(16.dp))
         OutlinedButton(onClick = onNext) { Text(nextLabel) }
+        if (altLabel != null) {
+            Spacer(Modifier.width(8.dp))
+            OutlinedButton(onClick = onAlt) { Text(altLabel) }
+        }
         Spacer(Modifier.width(8.dp))
         Button(onClick = onRetry, modifier = Modifier.focusRequester(focus)) { Text("Retry") }
     }

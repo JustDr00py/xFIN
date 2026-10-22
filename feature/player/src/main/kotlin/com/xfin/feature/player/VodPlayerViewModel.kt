@@ -12,6 +12,7 @@ import com.xfin.core.model.MediaSegment
 import com.xfin.core.model.VodStream
 import com.xfin.core.player.VodPlayer
 import com.xfin.core.player.VodPlayerState
+import com.xfin.data.jellyfin.VersionPreferences
 import com.xfin.data.library.LibraryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -39,6 +40,8 @@ data class VodUiState(
     /** Intro, recap and credits the player offers to skip. */
     val segments: List<MediaSegment> = emptyList(),
     val error: String? = null,
+    /** [error] came from not reaching the server, so another version wouldn't play either. */
+    val errorIsNetwork: Boolean = false,
 )
 
 @OptIn(UnstableApi::class)
@@ -46,6 +49,7 @@ data class VodUiState(
 class VodPlayerViewModel @Inject constructor(
     savedState: SavedStateHandle,
     private val jellyfin: LibraryRepository,
+    private val versions: VersionPreferences,
     val player: VodPlayer,
 ) : ViewModel() {
     private val route = savedState.toRoute<VodPlayerRoute>()
@@ -72,8 +76,15 @@ class VodPlayerViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 android.util.Log.w("xFIN-vod", "playback setup failed", e)
-                _ui.update { it.copy(error = e.message ?: "Couldn't play this title") }
+                _ui.update { it.copy(error = e.message ?: "Couldn't play this title", errorIsNetwork = e is java.io.IOException) }
             }
+        }
+        // Remember a version the user picked only once it actually plays, so one that fails doesn't
+        // become the title's default.
+        viewModelScope.launch {
+            player.state.first { it.playing }
+            val id = stream?.mediaSourceId ?: return@launch
+            if (route.mediaSourceId != null && (_ui.value.item?.versions?.size ?: 0) > 1) versions.set(route.itemId, id)
         }
         // Keep the server's "continue watching" in sync: every 10 s, and on pause/resume.
         viewModelScope.launch {
@@ -108,11 +119,26 @@ class VodPlayerViewModel @Inject constructor(
                     player.play(transcode)
                     jellyfin.reportStart(transcode, position)
                 } catch (e: Exception) {
-                    _ui.update { it.copy(error = e.message ?: "Couldn't play this title") }
+                    _ui.update { it.copy(error = e.message ?: "Couldn't play this title", errorIsNetwork = e is java.io.IOException) }
                 }
             }
         }
     }
+
+    /**
+     * When playback failed for a reason a different file could fix (missing file, server error,
+     * undecodable even after a transcode): the version that failed and where to pick up, else null.
+     * Connection errors don't qualify, since every version would fail the same way.
+     */
+    fun failedVersion(ui: VodUiState, playback: VodPlayerState): String? {
+        if ((ui.item?.versions?.size ?: 0) < 2) return null
+        val network = if (ui.error != null) ui.errorIsNetwork else playback.networkFailed
+        if (network) return null
+        return stream?.mediaSourceId ?: route.mediaSourceId
+    }
+
+    /** Where to start when another version is picked: the failed one's position, else where this began. */
+    fun resumePositionMs(): Long = player.state.value.positionMs.takeIf { it > 0 } ?: route.startMs
 
     /**
      * Asks the server for the stream again rather than replaying the old URL: a failed request
@@ -120,7 +146,7 @@ class VodPlayerViewModel @Inject constructor(
      * one is what leaving and reopening the title would get.
      */
     fun retry() {
-        _ui.update { it.copy(error = null) }
+        _ui.update { it.copy(error = null, errorIsNetwork = false) }
         val s = stream ?: return
         val position = player.state.value.positionMs.takeIf { it > 0 } ?: s.startMs
         viewModelScope.launch {
@@ -136,7 +162,7 @@ class VodPlayerViewModel @Inject constructor(
                 player.play(fresh)
                 jellyfin.reportStart(fresh, position)
             } catch (e: Exception) {
-                _ui.update { it.copy(error = e.message ?: "Couldn't play this title") }
+                _ui.update { it.copy(error = e.message ?: "Couldn't play this title", errorIsNetwork = e is java.io.IOException) }
             }
         }
     }

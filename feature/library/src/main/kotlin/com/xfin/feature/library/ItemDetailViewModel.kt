@@ -15,6 +15,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -33,26 +34,30 @@ data class ItemDetailState(
     val error: String? = null,
 )
 
+/** Playback of [item] failed with [failedVersionId]: reopen the picker, starting at [startMs]. */
+data class VersionRetryRequest(val item: MediaItem, val failedVersionId: String, val startMs: Long)
+
 @HiltViewModel
 class ItemDetailViewModel @Inject constructor(
-    savedState: SavedStateHandle,
+    private val savedState: SavedStateHandle,
     private val jellyfin: LibraryRepository,
     private val versions: VersionPreferences,
 ) : ViewModel() {
-    /** Version choices made on this page, on top of the remembered ones. */
-    private val _chosen = MutableStateFlow<Map<String, String>>(emptyMap())
-    val chosen: StateFlow<Map<String, String>> = _chosen.asStateFlow()
-
-    /** The version Play will use: this page's choice, the remembered one, else the server's first. */
+    /**
+     * The version Play will use: the last one that played, else the server's first. The player saves
+     * it once playback starts, so a pick that fails never becomes the default.
+     */
     fun versionFor(item: MediaItem): MediaVersion? {
         if (item.versions.isEmpty()) return null
-        val id = _chosen.value[item.id] ?: versions.get(item.id)
+        val id = versions.get(item.id)
         return item.versions.firstOrNull { it.id == id } ?: item.versions.first()
     }
 
-    fun chooseVersion(item: MediaItem, version: MediaVersion) {
-        versions.set(item.id, version.id)
-        _chosen.value = _chosen.value + (item.id to version.id)
+    private val _versionRetry = MutableStateFlow<VersionRetryRequest?>(null)
+    val versionRetry: StateFlow<VersionRetryRequest?> = _versionRetry.asStateFlow()
+
+    fun versionRetryShown() {
+        _versionRetry.value = null
     }
 
     private val route = savedState.toRoute<ItemRoute>()
@@ -63,6 +68,20 @@ class ItemDetailViewModel @Inject constructor(
 
     init {
         load()
+        // Sent back by the player when the user asks to try another version.
+        viewModelScope.launch {
+            savedState.getStateFlow<String?>(RETRY_ITEM, null).filterNotNull().collect { itemId ->
+                val failed = savedState.get<String>(RETRY_FAILED_VERSION)
+                val startMs = savedState.get<Long>(RETRY_START_MS) ?: 0
+                savedState[RETRY_ITEM] = null
+                if (failed == null) return@collect
+                // Usually an episode of this series rather than the page's own title.
+                val item = _state.value.item?.takeIf { it.id == itemId }
+                    ?: runCatching { jellyfin.item(sourceId, itemId) }.getOrNull()
+                    ?: return@collect
+                if (item.versions.size > 1) _versionRetry.value = VersionRetryRequest(item, failed, startMs)
+            }
+        }
     }
 
     fun load() {

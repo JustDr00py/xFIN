@@ -18,6 +18,7 @@ import com.xfin.feature.guide.GuideRoute
 import com.xfin.feature.guide.guideScreen
 import com.xfin.feature.livetv.LiveTvRoute
 import com.xfin.feature.library.ItemRoute
+import com.xfin.feature.library.requestVersionRetry
 import com.xfin.feature.library.LibraryRoute
 import com.xfin.feature.library.MoviesRoute
 import com.xfin.feature.library.SearchRoute
@@ -27,6 +28,7 @@ import com.xfin.feature.library.libraryScreens
 import com.xfin.feature.onboarding.AddJellyfinRoute
 import com.xfin.feature.onboarding.SourceKind
 import com.xfin.feature.player.VodPlayerRoute
+import androidx.navigation.NavDestination.Companion.hasRoute
 import com.xfin.feature.player.MultiviewRoute
 import com.xfin.app.SourceSummary
 import com.xfin.feature.livetv.liveTvScreen
@@ -162,6 +164,16 @@ fun XfinNavHost(sources: SourceSummary, navController: NavHostController = remem
             onBack = { navController.popBackStack() },
             onPlayNext = { next ->
                 navController.navigate(next) { popUpTo<VodPlayerRoute> { inclusive = true } }
+            },
+            // Back to the title's page with its version picker open; played from elsewhere (e.g.
+            // Continue Watching), open the title's page first.
+            onTryAnotherVersion = { retry ->
+                navController.popBackStack()
+                if (navController.currentBackStackEntry?.destination?.hasRoute<ItemRoute>() != true) {
+                    navController.navigate(ItemRoute(retry.sourceId, retry.itemId))
+                }
+                navController.currentBackStackEntry?.savedStateHandle
+                    ?.requestVersionRetry(retry.itemId, retry.failedVersionId, retry.startMs)
             },
             // Multiview replaces the single player (and vice versa) so streams are never doubled up.
             onOpenMultiview = { route ->

@@ -96,6 +96,7 @@ import androidx.compose.ui.focus.focusRequester
 internal fun VodPlayerScreen(
     onBack: () -> Unit,
     onPlayNext: (VodPlayerRoute) -> Unit,
+    onTryAnotherVersion: (VersionRetry) -> Unit,
     viewModel: VodPlayerViewModel = hiltViewModel(),
 ) {
     val ui by viewModel.ui.collectAsStateWithLifecycle()
@@ -300,7 +301,19 @@ internal fun VodPlayerScreen(
 
         val error = ui.error ?: playback.error
         if (error != null && !inPip) {
-            ErrorCard(error, onRetry = viewModel::retry, onNext = onBack, nextLabel = "Close", modifier = Modifier.align(Alignment.Center))
+            val failedVersion = viewModel.failedVersion(ui, playback)
+            ErrorCard(
+                error,
+                onRetry = viewModel::retry,
+                onNext = onBack,
+                nextLabel = "Close",
+                altLabel = if (failedVersion != null) "Try another version" else null,
+                onAlt = {
+                    val item = ui.item ?: return@ErrorCard
+                    onTryAnotherVersion(VersionRetry(item.sourceId, item.id, failedVersion ?: return@ErrorCard, viewModel.resumePositionMs()))
+                },
+                modifier = Modifier.align(Alignment.Center),
+            )
         }
 
         val next = ui.upNext

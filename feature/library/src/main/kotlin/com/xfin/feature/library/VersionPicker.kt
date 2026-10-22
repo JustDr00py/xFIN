@@ -30,15 +30,24 @@ import com.xfin.core.designsystem.component.FocusSurface
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaVersion
 
-/** Lets the user choose which version of [item] Play will use (e.g. 4K or 1080p). */
+/**
+ * Lets the user choose which version of [item] Play will use (e.g. 4K or 1080p). [failedId] is a
+ * version that just failed to play: it's marked, and focus starts on the one after it.
+ */
 @Composable
 internal fun VersionPicker(
     item: MediaItem,
     selectedId: String?,
+    failedId: String? = null,
     onPick: (MediaVersion) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val first = remember { FocusRequester() }
+    val focusId = remember {
+        val failedIndex = item.versions.indexOfFirst { it.id == failedId }
+        if (failedIndex >= 0) item.versions[(failedIndex + 1) % item.versions.size].id
+        else selectedId ?: item.versions.first().id
+    }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
@@ -68,12 +77,14 @@ internal fun VersionPicker(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp, vertical = 4.dp)
-                                .then(if (version.id == (selectedId ?: item.versions.first().id)) Modifier.focusRequester(first) else Modifier),
+                                .then(if (version.id == focusId) Modifier.focusRequester(first) else Modifier),
                         ) {
                             Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(version.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                                    if (version.id == selectedId) {
+                                    if (version.id == failedId) {
+                                        Text("Didn't play", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                                    } else if (version.id == selectedId) {
                                         Icon(Icons.Rounded.Check, "Selected", tint = MaterialTheme.colorScheme.primary)
                                     }
                                 }

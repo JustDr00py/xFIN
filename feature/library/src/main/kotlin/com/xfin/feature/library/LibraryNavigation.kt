@@ -1,6 +1,7 @@
 package com.xfin.feature.library
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.SavedStateHandle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.xfin.core.model.MediaKind
@@ -14,6 +15,21 @@ data class LibraryGridRoute(val sourceId: Long, val viewId: String, val name: St
 
 @Serializable
 data class ItemRoute(val sourceId: Long, val itemId: String)
+
+/**
+ * Asks the title page owning this handle to reopen the version picker for [itemId] (the title or one
+ * of its episodes), marking [failedVersionId] as the one that didn't play.
+ */
+fun SavedStateHandle.requestVersionRetry(itemId: String, failedVersionId: String, startMs: Long) {
+    set(RETRY_FAILED_VERSION, failedVersionId)
+    set(RETRY_START_MS, startMs)
+    // Set last: the page reacts to this key.
+    set(RETRY_ITEM, itemId)
+}
+
+internal const val RETRY_ITEM = "versionRetry.itemId"
+internal const val RETRY_FAILED_VERSION = "versionRetry.failedVersionId"
+internal const val RETRY_START_MS = "versionRetry.startMs"
 
 @Serializable
 data object MoviesRoute
