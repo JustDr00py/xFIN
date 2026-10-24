@@ -330,6 +330,8 @@ internal fun PlayerScreen(
                     guideOpen = false
                 },
                 onLeft = { categoriesOpen = true },
+                // Moving Right back into the list leaves the categories, so Left can open them again.
+                onFocusEnter = { categoriesOpen = false },
                 focusKey = guideFocus,
             )
             }

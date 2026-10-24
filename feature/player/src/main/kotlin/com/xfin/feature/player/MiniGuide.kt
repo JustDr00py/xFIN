@@ -62,6 +62,8 @@ internal fun MiniGuide(
     onSelect: (Int) -> Unit,
     /** TV: Left in the list opens the categories column. */
     onLeft: () -> Unit = {},
+    /** Focus came (back) into the list, e.g. Right out of the categories column. */
+    onFocusEnter: () -> Unit = {},
     /** Set when focus should come back to the list (e.g. after picking a category). */
     focusKey: Any? = null,
 ) {
@@ -80,6 +82,7 @@ internal fun MiniGuide(
                     false
                 }
             }
+            .onFocusChanged { if (it.hasFocus) onFocusEnter() }
             .fillMaxHeight()
             .width(if (isTv) 440.dp else 360.dp)
             .background(Brush.horizontalGradient(listOf(Color(0xF5090B10), Color(0xE6090B10))))

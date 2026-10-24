@@ -136,7 +136,7 @@ private fun CategoryTile(category: Category, onClick: () -> Unit, modifier: Modi
             }
             category.count?.let {
                 Text(
-                    "%,d channels".format(it),
+                    if (it == 1) "1 channel" else "%,d channels".format(it),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 6.dp),
