@@ -72,6 +72,7 @@ class LivePlayer @Inject constructor(
     private val dataSources = StreamDataSourceFactory(http)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var retryJob: Job? = null
+    private var stallJob: Job? = null
     private var current: PlayableStream? = null
     private var forcedHls = false
     private var retries = 0
@@ -98,7 +99,10 @@ class LivePlayer @Inject constructor(
         .setLoadControl(
             DefaultLoadControl.Builder()
                 .setBufferDurationsMs(15_000, 50_000, 1_000, 2_500)
-                .setPrioritizeTimeOverSizeThresholds(true)
+                // A stream whose timestamps stop advancing never reaches the time target, so
+                // without a byte cap the loader fills the heap until the app dies of OOM.
+                .setTargetBufferBytes(BUFFER_BYTES)
+                .setPrioritizeTimeOverSizeThresholds(false)
                 .build(),
         )
         .setAudioAttributes(
@@ -223,6 +227,7 @@ class LivePlayer @Inject constructor(
      */
     fun stop() {
         retryJob?.cancel()
+        stallJob?.cancel()
         player.stop()
     }
 
@@ -258,6 +263,29 @@ class LivePlayer @Inject constructor(
         override fun onPlaybackStateChanged(playbackState: Int) {
             _state.update { it.copy(buffering = playbackState == Player.STATE_BUFFERING, ended = playbackState == Player.STATE_ENDED) }
             if (playbackState == Player.STATE_READY) retries = 0
+            stallJob?.cancel()
+            if (playbackState == Player.STATE_BUFFERING) stallJob = scope.launch { watchStall() }
+        }
+
+        /**
+         * Live streams can wedge in buffering while the connection keeps delivering data (broken
+         * timestamps, a track that stops), and only a fresh start recovers them; do that ourselves.
+         */
+        private suspend fun watchStall() {
+            delay(STALL_TIMEOUT_MS)
+            val stream = current ?: return
+            // Paused, or a finite archive where a slow seek is not a wedged stream.
+            if (!player.playWhenReady || player.duration != C.TIME_UNSET) return
+            android.util.Log.w(
+                "xFIN-live",
+                "stalled ${STALL_TIMEOUT_MS}ms (pos=${player.currentPosition} buffered=${player.bufferedPosition}); retry ${retries + 1}",
+            )
+            if (retries < MAX_RETRIES) {
+                retries++
+                start(stream)
+            } else {
+                _state.update { it.copy(buffering = false, error = "The stream stopped responding.") }
+            }
         }
 
         override fun onTracksChanged(tracks: Tracks) {
@@ -352,5 +380,8 @@ class LivePlayer @Inject constructor(
 
     private companion object {
         const val MAX_RETRIES = 3
+        const val STALL_TIMEOUT_MS = 12_000L
+        // 50 s of a 6 Mbps channel; well inside the 192 MB heap of phones and sticks.
+        const val BUFFER_BYTES = 40 * 1024 * 1024
     }
 }
