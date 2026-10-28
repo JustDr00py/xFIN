@@ -301,8 +301,10 @@ class PlayerViewModel @Inject constructor(
      * and seeking it to the live edge buffers forever, so live is tuned afresh; an archive resumes.
      */
     fun resume() {
-        if (_ui.value.catchup == null) tune(delayMs = 0) else livePlayer.player.play()
+        if (_ui.value.catchup == null) tune(delayMs = 0) else livePlayer.restart()
     }
+
+    fun suspend() = livePlayer.stop()
 
     fun retry() {
         if (_ui.value.resolveError != null) tune(delayMs = 0) else livePlayer.retry()

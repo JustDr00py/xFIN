@@ -216,6 +216,22 @@ class LivePlayer @Inject constructor(
             .build()
     }
 
+    /**
+     * For when the app leaves the screen: a paused player keeps its connection open (counting
+     * against the provider's connection limit), so drop it. The stream and position are kept;
+     * [restart] picks up again.
+     */
+    fun stop() {
+        retryJob?.cancel()
+        player.stop()
+    }
+
+    /** Resumes after [stop] from the kept position (archives); live streams are retuned instead. */
+    fun restart() {
+        player.prepare()
+        player.play()
+    }
+
     fun release() {
         scope.cancel()
         player.release()

@@ -79,8 +79,9 @@ internal fun MultiviewScreen(
     var picking by remember { mutableStateOf(false) }
 
     FullscreenEffect(lockLandscape = !isTv)
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { state.tiles.forEach { it.player.player.pause() } }
-    LifecycleEventEffect(Lifecycle.Event.ON_START) { state.tiles.forEach { it.player.player.play() } }
+    // Stop rather than pause: a paused player keeps every tile's connection open in the background.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { state.tiles.forEach { it.player.stop() } }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { state.tiles.forEach { it.player.retry() } }
     BackHandler(enabled = picking) { picking = false }
 
     val canAdd = state.tiles.size < MultiviewViewModel.MAX_TILES

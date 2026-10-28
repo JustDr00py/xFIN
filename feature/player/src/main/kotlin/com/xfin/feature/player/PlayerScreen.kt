@@ -109,7 +109,7 @@ internal fun PlayerScreen(
     var stopped by remember { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
         stopped = true
-        player.pause()
+        viewModel.suspend()
     }
     LifecycleEventEffect(Lifecycle.Event.ON_START) {
         if (stopped) {
