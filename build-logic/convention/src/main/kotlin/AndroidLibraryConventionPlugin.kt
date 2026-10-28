@@ -16,10 +16,12 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
             compileOptions {
                 sourceCompatibility = AndroidConfig.JAVA_VERSION
                 targetCompatibility = AndroidConfig.JAVA_VERSION
+                isCoreLibraryDesugaringEnabled = true
             }
             testOptions.unitTests.isReturnDefaultValues = true
         }
         dependencies {
+            add("coreLibraryDesugaring", libs.lib("desugar-jdk-libs"))
             add("testImplementation", libs.lib("junit"))
             add("testImplementation", libs.lib("kotlinx-coroutines-test"))
         }

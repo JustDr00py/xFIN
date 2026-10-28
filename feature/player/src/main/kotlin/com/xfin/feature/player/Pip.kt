@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.drawable.Icon
 import android.os.Build
+import androidx.annotation.RequiresApi
 import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.Composable
@@ -54,6 +55,8 @@ fun rememberIsInPip(): Boolean {
  */
 @Composable
 fun PipEffect(videoSize: Size, playing: Boolean, onTogglePlay: () -> Unit): () -> Unit {
+    // Picture-in-picture arrived in Android 8.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return {}
     val context = LocalContext.current
     val activity = context.findComponentActivity()
     val toggle by rememberUpdatedState(onTogglePlay)
@@ -84,6 +87,7 @@ fun PipEffect(videoSize: Size, playing: Boolean, onTogglePlay: () -> Unit): () -
     return { if (activity != null && params != null) runCatching { activity.enterPictureInPictureMode(params) } }
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 private fun buildParams(activity: Activity, videoSize: Size, playing: Boolean, autoEnter: Boolean): PictureInPictureParams {
     val ratio = if (videoSize.width > 0 && videoSize.height > 0) {
         // Android only accepts ratios between 1:2.39 and 2.39:1.
