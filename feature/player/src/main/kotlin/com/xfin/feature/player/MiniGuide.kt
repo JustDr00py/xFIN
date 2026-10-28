@@ -148,8 +148,11 @@ internal fun MiniGuide(
             }
         }
     }
-    LaunchedEffect(focusKey, lineup.itemCount > 0) {
-        if (isTv && lineup.itemCount > 0) {
+    // After picking a category the list briefly still holds the previous one's channels; when the new
+    // ones replace them the focused row goes away and focus with it, so focus again once they arrive.
+    val firstKey = if (lineup.itemCount > 0) lineup.peek(0)?.id else null
+    LaunchedEffect(focusKey, firstKey) {
+        if (isTv && firstKey != null) {
             listState.scrollToItem((focusRow - 2).coerceAtLeast(0))
             withFrameNanos { }
             runCatching { focus.requestFocus() }
