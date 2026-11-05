@@ -13,3 +13,6 @@ build/
 keystore.properties
 *.jks
 *.keystore
+
+# Local design research (screenshots of other apps, personal playlists): never published.
+docs/research/
