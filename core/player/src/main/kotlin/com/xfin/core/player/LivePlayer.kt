@@ -6,6 +6,7 @@ import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
@@ -91,8 +92,11 @@ class LivePlayer @Inject constructor(
                 dataSources,
                 // IPTV restreams rarely declare their captions in the stream's tables, so a TS
                 // stream would offer none; assume broadcast CC (CEA-608) is carried in the video.
-                DefaultExtractorsFactory().setTsSubtitleFormats(
-                    listOf(Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA608).build()),
+                // Smoothing hides the clock jump when a panel fails over to a backup feed.
+                SmoothingExtractorsFactory(
+                    DefaultExtractorsFactory().setTsSubtitleFormats(
+                        listOf(Format.Builder().setSampleMimeType(MimeTypes.APPLICATION_CEA608).build()),
+                    ),
                 ),
             ),
         )
@@ -141,6 +145,23 @@ class LivePlayer @Inject constructor(
                                 audioChannels = format.channelCount.takeIf { c -> c > 0 } ?: it.audioChannels,
                                 audioLanguage = format.language?.takeUnless { l -> l == "und" || l.isBlank() } ?: it.audioLanguage,
                             )
+                        }
+                    }
+
+                    /**
+                     * Safety net: a clock jump the smoother missed (e.g. an HLS stream without a
+                     * discontinuity tag) leaves video frozen behind audio; re-tune at once rather
+                     * than waiting out the stall watchdog.
+                     */
+                    override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, audioSinkError: Exception) {
+                        val jump = audioSinkError as? AudioSink.UnexpectedDiscontinuityException ?: return
+                        val jumpUs = jump.actualPresentationTimeUs - jump.expectedPresentationTimeUs
+                        if (Math.abs(jumpUs) < RETUNE_JUMP_US || duration != C.TIME_UNSET) return
+                        val stream = current ?: return
+                        android.util.Log.w("xFIN-live", "clock jumped ${jumpUs / 1000}ms; retune ${retries + 1}")
+                        if (retries < MAX_RETRIES) {
+                            retries++
+                            scope.launch { start(stream) }
                         }
                     }
                 },
@@ -381,6 +402,7 @@ class LivePlayer @Inject constructor(
     private companion object {
         const val MAX_RETRIES = 3
         const val STALL_TIMEOUT_MS = 12_000L
+        const val RETUNE_JUMP_US = 2_000_000L
         // 50 s of a 6 Mbps channel; well inside the 192 MB heap of phones and sticks.
         const val BUFFER_BYTES = 40 * 1024 * 1024
     }
