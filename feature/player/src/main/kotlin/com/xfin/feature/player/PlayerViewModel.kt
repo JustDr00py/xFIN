@@ -18,6 +18,7 @@ import com.xfin.core.model.encode
 import kotlinx.coroutines.flow.flatMapLatest
 import com.xfin.core.player.LivePlayer
 import com.xfin.core.player.LivePlayerState
+import com.xfin.core.player.LiveSession
 import com.xfin.data.sources.ChannelRepository
 import com.xfin.data.sources.EpgRepository
 import com.xfin.data.sources.SourceRepository
@@ -69,8 +70,11 @@ class PlayerViewModel @Inject constructor(
     private val channels: ChannelRepository,
     private val epg: EpgRepository,
     sources: SourceRepository,
-    val livePlayer: LivePlayer,
+    private val session: LiveSession,
 ) : ViewModel() {
+    /** Shared with the guide's preview, so it outlives this screen (see [LiveSession]). */
+    val livePlayer: LivePlayer = session.player()
+
     private val sourceNames: StateFlow<Map<Long, String>> = sources.observeSources()
         .map { list -> list.associate { it.id to it.name } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
@@ -193,7 +197,11 @@ class PlayerViewModel @Inject constructor(
                 return@launch
             }
             show(index, direction = 0)
-            tune(delayMs = 0)
+            // Back to fullscreen from the guide's preview: the channel is already playing.
+            val playing = session.current.value
+            val resumes = route.catchupStart == 0L && playing != null && !playing.catchup &&
+                playing.channelId == route.channelId && livePlayer.state.value.error == null
+            if (resumes) session.update(route.channelId, filter, catchup = false) else tune(delayMs = 0)
         }
         // An archive that plays to its end continues live.
         viewModelScope.launch {
@@ -371,18 +379,16 @@ class PlayerViewModel @Inject constructor(
                 val archive = _ui.value.catchup
                 if (archive != null) {
                     livePlayer.play(channels.resolveCatchup(channel.id, archive.playFrom, archive.end))
+                    session.update(channel.id, filter, catchup = true)
                 } else {
                     livePlayer.play(channels.resolveStream(channel.id))
+                    session.update(channel.id, filter, catchup = false)
                     channels.recordWatched(channel)
                 }
             } catch (e: Exception) {
                 _ui.update { it.copy(resolveError = e.message ?: "Couldn't open this channel") }
             }
         }
-    }
-
-    override fun onCleared() {
-        livePlayer.release()
     }
 
     private companion object {

@@ -107,11 +107,15 @@ internal fun PlayerScreen(
 
     FullscreenEffect(lockLandscape = !isTv)
     var stopped by remember { mutableStateOf(false) }
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+    // The app's lifecycle, not this screen's: Back to the guide stops this screen, but the stream
+    // must keep playing in the guide's preview.
+    val app = (androidx.activity.compose.LocalActivity.current as? androidx.lifecycle.LifecycleOwner)
+        ?: androidx.lifecycle.compose.LocalLifecycleOwner.current
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP, app) {
         stopped = true
         viewModel.suspend()
     }
-    LifecycleEventEffect(Lifecycle.Event.ON_START) {
+    LifecycleEventEffect(Lifecycle.Event.ON_START, app) {
         if (stopped) {
             stopped = false
             viewModel.resume()

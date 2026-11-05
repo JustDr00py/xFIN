@@ -47,6 +47,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.xfin.core.designsystem.component.EmptyState
 import com.xfin.core.designsystem.component.LocalIsTv
+import com.xfin.core.model.Channel
 import com.xfin.core.model.ChannelFilter
 import com.xfin.core.model.EpgRefreshState
 import kotlinx.coroutines.launch
@@ -80,7 +81,16 @@ internal fun GuideScreen(
     val timeline = rememberTimelineState(viewModel.window, metrics.minuteWidth, now)
     val playFilter = filter ?: ChannelFilter.All
 
-    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    // TV: the live channel left playing when coming back from fullscreen (as in TiviMate).
+    val previewId by viewModel.previewChannelId.collectAsStateWithLifecycle()
+    val preview by viewModel.preview.collectAsStateWithLifecycle()
+    val playing = previewId.takeIf { isTv }
+    // With a preview up, OK previews another channel; OK on the one previewing goes fullscreen.
+    val watch: (Channel) -> Unit = { channel ->
+        if (playing != null && channel.id != playing) viewModel.preview(channel, playFilter) else onPlay(channel.id, playFilter)
+    }
+
+    val header: @Composable () -> Unit = {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -121,6 +131,26 @@ internal fun GuideScreen(
                 Text("Now", maxLines = 1, softWrap = false)
             }
         }
+    }
+
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        if (playing == null) {
+            header()
+        } else {
+            Row(Modifier.fillMaxWidth().height(PREVIEW_HEIGHT), verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    header()
+                    PreviewInfo(preview, Modifier.padding(start = 20.dp, end = 12.dp, top = 4.dp))
+                }
+                PreviewVideo(
+                    livePlayer = viewModel.previewPlayer(),
+                    onOpen = { onPlay(playing, playFilter) },
+                    onSuspend = viewModel::suspendPreview,
+                    onResume = viewModel::resumePreview,
+                    modifier = Modifier.padding(top = 16.dp, end = 20.dp, bottom = 8.dp),
+                )
+            }
+        }
 
         when {
             hasGuide == false && refresh is EpgRefreshState.Running -> EmptyState(
@@ -147,10 +177,10 @@ internal fun GuideScreen(
                 cachedPrograms = viewModel::cachedPrograms,
                 prefetch = viewModel::prefetch,
                 onToggleFavorite = viewModel::toggleFavorite,
-                onChannelClick = { onPlay(it.id, playFilter) },
+                onChannelClick = watch,
                 onProgramClick = { channel, program ->
                     // Tapping what's on now tunes straight in; anything else shows details first.
-                    if (program == null || program.isAiring(now)) onPlay(channel.id, playFilter) else viewModel.open(channel, program)
+                    if (program == null || program.isAiring(now)) watch(channel) else viewModel.open(channel, program)
                 },
                 modifier = Modifier.fillMaxSize(),
                 resetKey = filter,
@@ -176,7 +206,7 @@ internal fun GuideScreen(
             now = now,
             onWatch = {
                 viewModel.dismiss()
-                onPlay(sel.channel.id, playFilter)
+                watch(sel.channel)
             },
             onWatchFromStart = {
                 viewModel.dismiss()
@@ -217,3 +247,6 @@ private fun GroupPicker(
         }
     }
 }
+
+/** The guide's top band while a channel plays in the preview (TV). */
+private val PREVIEW_HEIGHT = 190.dp

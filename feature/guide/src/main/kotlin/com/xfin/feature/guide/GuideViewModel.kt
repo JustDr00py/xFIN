@@ -12,6 +12,8 @@ import com.xfin.core.model.EpgRefreshState
 import com.xfin.core.model.Program
 import com.xfin.core.model.decodeChannelFilter
 import com.xfin.core.model.encode
+import com.xfin.core.player.LivePlayer
+import com.xfin.core.player.LiveSession
 import com.xfin.data.sources.ChannelRepository
 import com.xfin.data.sources.EpgRepository
 import com.xfin.data.sources.LastFilter
@@ -28,6 +30,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -41,13 +44,17 @@ data class GuideWindow(val start: Long, val end: Long)
 
 data class ProgramSelection(val channel: Channel, val program: Program?)
 
-@OptIn(ExperimentalCoroutinesApi::class)
+/** The live channel playing in the TV guide's preview, and what it's airing. */
+data class GuidePreview(val channel: Channel, val program: Program?)
+
+@OptIn(ExperimentalCoroutinesApi::class, androidx.media3.common.util.UnstableApi::class)
 @HiltViewModel
 class GuideViewModel @Inject constructor(
     private val savedState: SavedStateHandle,
     private val channels: ChannelRepository,
     private val epg: EpgRepository,
     private val lastFilter: LastFilter,
+    private val session: LiveSession,
 ) : ViewModel() {
 
     val now: StateFlow<Long> = minuteTicks().stateIn(viewModelScope, SharingStarted.Eagerly, System.currentTimeMillis())
@@ -131,6 +138,50 @@ class GuideViewModel @Inject constructor(
                 epg.programsFor(missing, window.start, window.end).forEach { (id, programs) -> cache.put(id, programs) }
             } finally {
                 prefetching -= missing.map { it.id }.toSet()
+            }
+        }
+    }
+
+    // --- Live preview (TV) ---
+
+    /** The live channel still playing from fullscreen; null when nothing plays (or an archive). */
+    val previewChannelId: StateFlow<Long?> = session.current.map { it?.takeUnless { s -> s.catchup }?.channelId }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, session.current.value?.takeUnless { it.catchup }?.channelId)
+
+    /** The player behind the preview; only valid while [previewChannelId] is set. */
+    fun previewPlayer(): LivePlayer = session.player()
+
+    val preview: StateFlow<GuidePreview?> = combine(previewChannelId, now) { id, time -> id to time }
+        .mapLatest { (id, time) ->
+            val channel = id?.let { channels.channel(it) } ?: return@mapLatest null
+            GuidePreview(channel, programs(channel).firstOrNull { time in it.start until it.end })
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** Switches the preview to [channel] without leaving the guide. */
+    fun preview(channel: Channel, filter: ChannelFilter) {
+        tunePreview(channel.id, filter)
+        viewModelScope.launch { channels.recordWatched(channel) }
+    }
+
+    /** Back from the background: a live stream left stopped is dead, so tune it afresh. */
+    fun resumePreview() {
+        session.current.value?.takeUnless { it.catchup }?.let { tunePreview(it.channelId, it.filter) }
+    }
+
+    fun suspendPreview() {
+        if (previewChannelId.value != null) session.player().stop()
+    }
+
+    private var previewJob: kotlinx.coroutines.Job? = null
+
+    private fun tunePreview(channelId: Long, filter: ChannelFilter) {
+        previewJob?.cancel()
+        previewJob = viewModelScope.launch {
+            // On failure the previous channel keeps playing, so the session stays on it.
+            runCatching { channels.resolveStream(channelId) }.onSuccess {
+                session.player().play(it)
+                session.update(channelId, filter, catchup = false)
             }
         }
     }

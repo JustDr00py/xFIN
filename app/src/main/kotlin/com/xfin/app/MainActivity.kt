@@ -20,8 +20,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xfin.app.navigation.XfinNavHost
 import com.xfin.core.designsystem.component.LocalIsTv
 import com.xfin.core.designsystem.theme.XfinTheme
+import com.xfin.core.player.LiveSession
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @AndroidEntryPoint
 class MainActivity : ComponentActivity(), PipHost {
 
@@ -35,6 +38,8 @@ class MainActivity : ComponentActivity(), PipHost {
 
 
     private val viewModel: MainViewModel by viewModels()
+
+    @Inject lateinit var liveSession: LiveSession
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen().setKeepOnScreenCondition { viewModel.sources.value == null }
@@ -51,7 +56,7 @@ class MainActivity : ComponentActivity(), PipHost {
             CompositionLocalProvider(LocalIsTv provides isTv) {
                 XfinTheme {
                     Surface(color = MaterialTheme.colorScheme.background) {
-                        sources?.let { XfinNavHost(sources = it) }
+                        sources?.let { XfinNavHost(sources = it, liveSession = liveSession) }
                     }
                 }
             }

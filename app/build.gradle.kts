@@ -58,6 +58,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:network"))
+    implementation(project(":core:player"))
     implementation(project(":data:sources"))
     implementation(project(":feature:onboarding"))
     implementation(project(":feature:livetv"))

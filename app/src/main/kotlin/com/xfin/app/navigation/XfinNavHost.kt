@@ -14,6 +14,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.xfin.core.model.ChannelFilter
 import com.xfin.core.model.encode
+import com.xfin.core.designsystem.component.LocalIsTv
+import com.xfin.core.player.LiveSession
 import com.xfin.feature.guide.GuideRoute
 import com.xfin.feature.guide.guideScreen
 import com.xfin.feature.livetv.LiveTvRoute
@@ -42,11 +44,28 @@ import com.xfin.feature.settings.RestoreFromBackupButton
 import com.xfin.feature.settings.SettingsRoute
 import com.xfin.feature.settings.settingsScreen
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
-fun XfinNavHost(sources: SourceSummary, navController: NavHostController = rememberNavController()) {
+fun XfinNavHost(
+    sources: SourceSummary,
+    liveSession: LiveSession,
+    navController: NavHostController = rememberNavController(),
+) {
     val hasSources = sources.any
     val backStack by navController.currentBackStackEntryAsState()
     val destination = backStack?.destination
+
+    // The live stream outlives the player only to keep playing in the TV guide's preview; anywhere
+    // else (or for an archive, or on phones) it stops, freeing the provider connection.
+    val isTv = LocalIsTv.current
+    LaunchedEffect(navController, isTv) {
+        navController.currentBackStackEntryFlow.collect { entry ->
+            val dest = entry.destination
+            val keep = dest.hasRoute<PlayerRoute>() ||
+                (isTv && dest.hasRoute<GuideRoute>() && liveSession.current.value?.catchup == false)
+            if (!keep) liveSession.end()
+        }
+    }
 
     // If every source gets removed, go back to onboarding.
     LaunchedEffect(hasSources) {
