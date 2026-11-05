@@ -1,6 +1,7 @@
 package com.xfin.feature.library
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -63,6 +64,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -84,6 +87,8 @@ import com.xfin.core.designsystem.component.ProgressTrack
 import com.xfin.core.designsystem.theme.XfinColors
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
+import kotlin.math.cos
+import kotlin.math.sin
 
 /** The version picker is open for [item]; [failedId] is set when it reopened after a failed playback. */
 private data class VersionChoice(val item: MediaItem, val startMs: Long, val failedId: String? = null)
@@ -312,6 +317,30 @@ private fun MetaLine(item: MediaItem, modifier: Modifier) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.Star, null, tint = XfinColors.Favorite, modifier = Modifier.size(16.dp))
                 Text(" %.1f".format(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        item.criticRating?.let {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Tomato(fresh = it >= 60, modifier = Modifier.size(16.dp))
+                Text(" $it%", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/** Critics' score mark: a red tomato with a leaf when fresh (60% or more), a green splat when rotten. */
+@Composable
+private fun Tomato(fresh: Boolean, modifier: Modifier) {
+    Canvas(modifier) {
+        val r = size.minDimension / 2
+        if (fresh) {
+            drawCircle(Color(0xFFFA320A), radius = r * 0.82f, center = Offset(r, r * 1.14f))
+            drawOval(Color(0xFF00912D), topLeft = Offset(r * 0.45f, 0f), size = Size(r * 1.1f, r * 0.55f))
+        } else {
+            drawCircle(Color(0xFF0AC855), radius = r * 0.7f, center = Offset(r, r))
+            for (i in 0 until 6) {
+                val a = i * Math.PI / 3
+                drawCircle(Color(0xFF0AC855), radius = r * 0.24f, center = Offset(r + r * 0.78f * cos(a).toFloat(), r + r * 0.78f * sin(a).toFloat()))
             }
         }
     }

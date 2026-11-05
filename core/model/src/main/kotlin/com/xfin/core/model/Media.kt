@@ -26,6 +26,8 @@ data class MediaItem(
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
     val communityRating: Float? = null,
+    /** Critics' score out of 100 (Rotten Tomatoes, when the server's metadata has it). */
+    val criticRating: Int? = null,
     val officialRating: String? = null,
     val genres: List<String> = emptyList(),
     val unplayedCount: Int? = null,

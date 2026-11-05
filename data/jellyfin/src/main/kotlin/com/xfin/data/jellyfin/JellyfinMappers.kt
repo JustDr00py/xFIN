@@ -13,6 +13,7 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.ImageType
 import java.util.UUID
+import kotlin.math.roundToInt
 
 internal const val TICKS_PER_MS = 10_000L
 
@@ -90,6 +91,7 @@ internal fun BaseItemDto.toMediaItem(api: ApiClient, sourceId: Long): MediaItem 
         seasonNumber = if (kind == MediaKind.EPISODE) parentIndexNumber else indexNumber,
         episodeNumber = if (kind == MediaKind.EPISODE) indexNumber else null,
         communityRating = communityRating,
+        criticRating = criticRating?.roundToInt(),
         officialRating = officialRating,
         genres = genres.orEmpty(),
         unplayedCount = userData?.unplayedItemCount,
