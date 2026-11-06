@@ -63,9 +63,16 @@ internal fun Artwork(url: String?, contentDescription: String?, modifier: Modifi
 
 /** 2:3 poster for movies and shows. */
 @Composable
-internal fun PosterCard(item: MediaItem, width: Dp, onClick: () -> Unit, modifier: Modifier = Modifier, badge: String? = null) {
+internal fun PosterCard(
+    item: MediaItem,
+    width: Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    badge: String? = null,
+    onLongClick: (() -> Unit)? = null,
+) {
     Column(if (width == Dp.Unspecified) modifier.fillMaxWidth() else modifier.width(width)) {
-        FocusSurface(onClick = onClick, shape = MaterialTheme.shapes.medium, focusedScale = 1.06f) {
+        FocusSurface(onClick = onClick, onLongClick = onLongClick, shape = MaterialTheme.shapes.medium, focusedScale = 1.06f) {
             Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
                 Artwork(item.posterUrl, item.name, Modifier.fillMaxSize(), fallback = item.name)
                 WatchedBadge(item, Modifier.align(Alignment.TopEnd))
@@ -94,9 +101,16 @@ internal fun PosterCard(item: MediaItem, width: Dp, onClick: () -> Unit, modifie
 
 /** 16:9 still for "continue watching", next up and episodes. */
 @Composable
-internal fun ThumbCard(item: MediaItem, width: Dp, onClick: () -> Unit, modifier: Modifier = Modifier, badge: String? = null) {
+internal fun ThumbCard(
+    item: MediaItem,
+    width: Dp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    badge: String? = null,
+    onLongClick: (() -> Unit)? = null,
+) {
     Column(modifier.width(width)) {
-        FocusSurface(onClick = onClick, shape = MaterialTheme.shapes.medium, focusedScale = 1.05f) {
+        FocusSurface(onClick = onClick, onLongClick = onLongClick, shape = MaterialTheme.shapes.medium, focusedScale = 1.05f) {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
                 Artwork(item.thumbUrl ?: item.backdropUrl, item.name, Modifier.fillMaxSize(), fallback = item.seriesName ?: item.name)
                 WatchedBadge(item, Modifier.align(Alignment.TopEnd))

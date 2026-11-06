@@ -87,6 +87,18 @@ class LibraryHomeViewModel @Inject constructor(private val jellyfin: LibraryRepo
         }
     }
 
+    /** Watched/unwatched; either way the item leaves Continue watching (its position resets). */
+    fun setPlayed(item: MediaItem, played: Boolean) = act { jellyfin.setPlayed(item, played) }
+
+    fun setFavorite(item: MediaItem, favorite: Boolean) = act { jellyfin.setFavorite(item, favorite) }
+
+    private fun act(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            runCatching { block() }
+            refresh()
+        }
+    }
+
     private fun update(sourceId: Long, transform: (ServerHome) -> ServerHome) {
         _state.value = _state.value.copy(
             servers = _state.value.servers?.map { if (it.server.id == sourceId) transform(it) else it },

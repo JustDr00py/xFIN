@@ -29,7 +29,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +46,7 @@ import com.xfin.core.designsystem.component.EmptyState
 import com.xfin.core.designsystem.component.HeaderIconButton
 import com.xfin.core.designsystem.component.LocalIsTv
 import com.xfin.core.designsystem.component.shimmer
+import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
 
 @Composable
@@ -60,6 +63,25 @@ internal fun LibraryHomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val isTv = LocalIsTv.current
+    // The card being long-pressed (phone) or held (TV), whose options are showing.
+    var menuFor by remember { mutableStateOf<MediaItem?>(null) }
+    menuFor?.let { item ->
+        ItemActionsDialog(
+            item = item,
+            onAction = { action ->
+                menuFor = null
+                when (action) {
+                    ItemAction.Resume -> onPlay(item.sourceId, item.id, item.positionMs, null)
+                    ItemAction.PlayFromStart -> onPlay(item.sourceId, item.id, 0, null)
+                    ItemAction.Details -> onOpenItem(item.sourceId, item.seriesId?.takeIf { item.kind == MediaKind.EPISODE } ?: item.id)
+                    ItemAction.RemoveFromContinue -> viewModel.setPlayed(item, played = false)
+                    is ItemAction.SetPlayed -> viewModel.setPlayed(item, action.played)
+                    is ItemAction.SetFavorite -> viewModel.setFavorite(item, action.favorite)
+                }
+            },
+            onDismiss = { menuFor = null },
+        )
+    }
     // Progress changes while watching; refresh rows when coming back.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
 
@@ -152,8 +174,13 @@ internal fun LibraryHomeScreen(
                                             }
                                         }
                                         when (row.style) {
-                                            RowStyle.THUMB -> ThumbCard(item, thumbWidth, open)
-                                            RowStyle.POSTER -> PosterCard(item, posterWidth, onClick = { onOpenItem(item.sourceId, item.id) })
+                                            RowStyle.THUMB -> ThumbCard(item, thumbWidth, open, onLongClick = { menuFor = item })
+                                            RowStyle.POSTER -> PosterCard(
+                                                item,
+                                                posterWidth,
+                                                onClick = { onOpenItem(item.sourceId, item.id) },
+                                                onLongClick = { menuFor = item },
+                                            )
                                         }
                                     }
                                 }
