@@ -81,6 +81,9 @@ class LivePlayer @Inject constructor(
     private val _state = MutableStateFlow(LivePlayerState())
     val state: StateFlow<LivePlayerState> = _state.asStateFlow()
 
+    /** Readings for the "Under the Hood" panel. */
+    val stats = StreamStatsTracker()
+
     val player: ExoPlayer = ExoPlayer.Builder(context)
         .setRenderersFactory(
             DefaultRenderersFactory(context)
@@ -119,6 +122,7 @@ class LivePlayer @Inject constructor(
         .apply {
             playWhenReady = true
             addListener(Listener())
+            addAnalyticsListener(stats)
             // Formats are only final once the decoders see them (frame rate, channels, language).
             addAnalyticsListener(
                 object : AnalyticsListener {
@@ -270,6 +274,7 @@ class LivePlayer @Inject constructor(
             .apply { if (forcedHls || stream.url.looksLikeHls()) setMimeType(MimeTypes.APPLICATION_M3U8) }
             .setLiveConfiguration(MediaItem.LiveConfiguration.Builder().setTargetOffsetMs(8_000).build())
             .build()
+        stats.reset()
         player.setMediaItem(item)
         player.prepare()
         player.play()

@@ -61,6 +61,9 @@ class VodPlayer @Inject constructor(
     private val _state = MutableStateFlow(VodPlayerState())
     val state: StateFlow<VodPlayerState> = _state.asStateFlow()
 
+    /** Readings for the "Under the Hood" panel. */
+    val stats = StreamStatsTracker()
+
     val player: ExoPlayer = ExoPlayer.Builder(context)
         .setRenderersFactory(
             DefaultRenderersFactory(context)
@@ -77,7 +80,10 @@ class VodPlayer @Inject constructor(
         .setSeekBackIncrementMs(SEEK_STEP_MS)
         .setSeekForwardIncrementMs(SEEK_STEP_MS)
         .build()
-        .apply { addListener(Listener()) }
+        .apply {
+            addListener(Listener())
+            addAnalyticsListener(stats)
+        }
 
     init {
         // Position ticks for the seek bar.
@@ -113,6 +119,7 @@ class VodPlayer @Inject constructor(
         _state.value = VodPlayerState(buffering = true)
         // A transcode already starts at the requested offset; direct play seeks.
         val seekTo = if (stream.isHls) 0 else stream.startMs
+        stats.reset()
         player.setMediaItem(item, seekTo)
         player.prepare()
         player.play()

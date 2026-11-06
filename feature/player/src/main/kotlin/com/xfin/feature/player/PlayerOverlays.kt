@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.ClosedCaption
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.GridView
@@ -114,6 +115,7 @@ internal fun ChannelOverlay(
     onSeek: (Long) -> Unit = {},
     onSkip: (Long) -> Unit = {},
     onGoLive: () -> Unit = {},
+    onStats: () -> Unit = {},
 ) {
     val inArchive = ui.catchup != null
     AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.fillMaxSize()) {
@@ -174,6 +176,7 @@ internal fun ChannelOverlay(
                             onMultiview = onMultiview,
                             onStartOver = onStartOver,
                             onSkip = onSkip,
+                            onStats = onStats,
                             modifier = Modifier.padding(start = 16.dp),
                         )
                     }
@@ -345,6 +348,7 @@ private fun ControlPill(
     onMultiview: () -> Unit,
     onStartOver: () -> Unit,
     onSkip: (Long) -> Unit,
+    onStats: () -> Unit,
     modifier: Modifier,
 ) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -368,6 +372,7 @@ private fun ControlPill(
             }
             IconButton(onClick = onMultiview) { Icon(Icons.Rounded.GridView, "Multiview", tint = Color.White) }
             IconButton(onClick = onOptions) { Icon(Icons.Rounded.ClosedCaption, "Audio and subtitles", tint = Color.White) }
+            IconButton(onClick = onStats) { Icon(Icons.Rounded.Speed, "Under the Hood", tint = Color.White) }
         }
     }
 }

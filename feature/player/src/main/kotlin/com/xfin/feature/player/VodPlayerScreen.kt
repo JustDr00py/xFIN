@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.PictureInPictureAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -106,6 +107,8 @@ internal fun VodPlayerScreen(
 
     var overlay by remember { mutableStateOf(true) }
     var panel by remember { mutableStateOf(false) }
+    // The "Under the Hood" stats panel; stays up until toggled off.
+    var hood by remember { mutableStateOf(false) }
     var interaction by remember { mutableIntStateOf(0) }
     val focus = remember { FocusRequester() }
     fun poke() {
@@ -284,6 +287,15 @@ internal fun VodPlayerScreen(
                 playFocus = playFocus,
                 onPip = enterPip,
                 onScale = { scale.cycle(); poke() },
+                onStats = { hood = !hood; poke() },
+            )
+        }
+
+        if (hood && !inPip) {
+            UnderTheHood(
+                vod.stats,
+                vod.player,
+                Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(top = 72.dp, end = 24.dp),
             )
         }
 
@@ -353,6 +365,7 @@ private fun Controls(
     onTracks: () -> Unit,
     onPip: () -> Unit,
     onScale: () -> Unit,
+    onStats: () -> Unit,
     playFocus: FocusRequester = remember { FocusRequester() },
 ) {
     Box(Modifier.fillMaxSize()) {
@@ -386,6 +399,7 @@ private fun Controls(
             if (!isTv) IconButton(onClick = onPip) { Icon(Icons.Rounded.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
             // TV has the Audio & subtitles button with the playback controls.
             if (!isTv) IconButton(onClick = onTracks) { Icon(Icons.Rounded.Tune, "Audio and subtitles", tint = Color.White) }
+            if (!isTv) IconButton(onClick = onStats) { Icon(Icons.Rounded.Speed, "Under the Hood", tint = Color.White) }
         }
 
         if (!isTv) {
@@ -439,6 +453,7 @@ private fun Controls(
                     TvControl(Icons.Rounded.Forward10, "Forward 10 seconds") { onSeekBy(VodPlayer.SEEK_STEP_MS) }
                     androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                     TvControl(Icons.Rounded.Tune, "Audio & subtitles", label = "Audio & subtitles", onClick = onTracks)
+                    TvControl(Icons.Rounded.Speed, "Under the Hood", label = "Under the Hood", onClick = onStats)
                 }
             }
         }

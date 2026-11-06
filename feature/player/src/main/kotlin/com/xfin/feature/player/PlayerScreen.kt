@@ -19,6 +19,7 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -84,6 +85,8 @@ internal fun PlayerScreen(
     val isTv = LocalIsTv.current
 
     var overlayVisible by remember { mutableStateOf(true) }
+    // The "Under the Hood" stats panel; stays up until toggled off.
+    var hood by remember { mutableStateOf(false) }
     var panelOpen by remember { mutableStateOf(false) }
     var guideOpen by remember { mutableStateOf(false) }
     var categoriesOpen by remember { mutableStateOf(false) }
@@ -278,7 +281,16 @@ internal fun PlayerScreen(
             onSeek = { viewModel.seekTo(it); poke() },
             onSkip = { viewModel.skip(it); poke() },
             onGoLive = { viewModel.goLive(); poke() },
+            onStats = { hood = !hood; poke() },
         )
+
+        if (hood && !inPip) {
+            UnderTheHood(
+                viewModel.livePlayer.stats,
+                player,
+                Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(top = 24.dp, end = 24.dp),
+            )
+        }
 
         val error = ui.resolveError ?: playback.error
         if (error != null && !panelOpen && !guideOpen && !inPip) {
