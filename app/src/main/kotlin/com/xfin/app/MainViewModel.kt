@@ -22,7 +22,11 @@ class MainViewModel @Inject constructor(sources: SourceRepository) : ViewModel()
             SourceSummary(
                 any = list.isNotEmpty(),
                 iptv = list.any { it.type != SourceType.JELLYFIN },
-                library = list.any { it.type == SourceType.JELLYFIN },
+                // Same rule as LibraryRepository.observeServers: Xtream providers' movies and
+                // series are browsable too, so IPTV-only users get the Movies/Series tabs.
+                library = list.any {
+                    it.type == SourceType.JELLYFIN || it.type == SourceType.XTREAM && it.vodMovieCount + it.vodSeriesCount > 0
+                },
             )
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
