@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -77,6 +78,7 @@ internal fun AddSourceScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.done) { if (state.done) onDone() }
+    PhoneSetupDialog(state, onDismiss = viewModel::stopPhoneSetup)
 
     Scaffold(
         topBar = {
@@ -113,6 +115,17 @@ internal fun AddSourceScreen(
                         .padding(horizontal = 20.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
+                    if (LocalIsTv.current && state.kind != SourceKind.JELLYFIN) {
+                        OutlinedButton(
+                            onClick = viewModel::startPhoneSetup,
+                            enabled = !state.loading && !state.importing,
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                        ) {
+                            Icon(Icons.Rounded.QrCode2, null)
+                            Spacer(Modifier.width(10.dp))
+                            Text("Set up from phone")
+                        }
+                    }
                     when (state.kind) {
                         SourceKind.M3U -> M3uForm(state, viewModel)
                         SourceKind.XTREAM -> XtreamForm(state, viewModel)

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>xFIN setup</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --text:#15171a; --muted:#5f6670; --line:#d5d9df; --accent:#3f6ee8; --ok:#1e8e4f; --okbg:#e3f4ea; --err:#c62828; --errbg:#fbe5e5; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0f1114; --card:#1a1d21; --text:#eceef1; --muted:#9aa2ad; --line:#30353c; --accent:#7c9cff; --ok:#4cc38a; --okbg:#15291f; --err:#ff6b6b; --errbg:#2e1616; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { max-width:480px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 20px; }
+  form { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  label { display:block; font-size:14px; font-weight:600; margin:14px 0 6px; }
+  input { width:100%; font:inherit; padding:12px; border:1px solid var(--line); border-radius:10px; background:transparent; color:var(--text); }
+  input:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:transparent; }
+  .hint { color:var(--muted); font-size:13px; margin-top:4px; }
+  .pw { position:relative; }
+  .pw input { padding-right:64px; }
+  .pw button { position:absolute; right:6px; top:50%; transform:translateY(-50%); border:0; background:none; color:var(--accent); font:inherit; font-size:14px; padding:8px; }
+  button.save { width:100%; margin-top:20px; padding:14px; font:inherit; font-weight:600; border:0; border-radius:10px; background:var(--accent); color:#fff; }
+  button.save:disabled { opacity:.6; }
+  .msg { margin-top:16px; padding:12px 14px; border-radius:10px; display:none; }
+  .msg.ok { display:block; background:var(--okbg); color:var(--ok); }
+  .msg.err { display:block; background:var(--errbg); color:var(--err); }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="title">Set up xFIN</h1>
+  <p class="sub">Fill this in and tap Save. Your TV checks the login and saves it.</p>
+  <form id="form" autocomplete="off" novalidate>
+    <div><label for="name">Name (optional)</label><input id="name" autocapitalize="words"></div>
+    <div><label for="url" id="url-label">Server URL</label>
+      <input id="url" type="url" inputmode="url" autocapitalize="none" spellcheck="false" placeholder="http://provider.tv:8080"></div>
+    <div id="f-username"><label for="username">Username</label>
+      <input id="username" autocapitalize="none" spellcheck="false"></div>
+    <div id="f-password"><label for="password">Password</label>
+      <div class="pw"><input id="password" type="password" autocapitalize="none" spellcheck="false">
+        <button type="button" id="toggle">Show</button></div>
+      <div class="hint hidden" id="pw-hint">Leave blank to keep the current password.</div></div>
+    <div id="f-epg" class="hidden"><label for="epgUrl" id="epg-label">Guide (XMLTV) URL (optional)</label>
+      <input id="epgUrl" type="url" inputmode="url" autocapitalize="none" spellcheck="false"></div>
+    <button class="save" id="save" type="submit">Save to TV</button>
+    <div class="msg" id="msg" role="status"></div>
+  </form>
+</main>
+<script>
+(function () {
+  var token = new URLSearchParams(location.search).get('t') || '';
+  var q = '?t=' + encodeURIComponent(token);
+  var $ = function (id) { return document.getElementById(id); };
+  var info = { kind: 'XTREAM', editing: false };
+
+  function show(id, on) { $(id).classList.toggle('hidden', !on); }
+  function message(text, ok) { var m = $('msg'); m.textContent = text; m.className = 'msg ' + (ok ? 'ok' : 'err'); }
+  function resetButton() { var s = $('save'); s.disabled = false; s.textContent = 'Save to TV'; }
+
+  $('toggle').onclick = function () {
+    var p = $('password'); var hidden = p.type === 'password';
+    p.type = hidden ? 'text' : 'password'; this.textContent = hidden ? 'Hide' : 'Show';
+  };
+
+  fetch('info' + q).then(function (r) { if (!r.ok) throw new Error(); return r.json(); }).then(function (d) {
+    info = d;
+    var m3u = d.kind === 'M3U';
+    $('title').textContent = d.editing ? 'Edit source' : (m3u ? 'Add M3U playlist' : 'Add provider login');
+    $('url-label').textContent = m3u ? 'Playlist URL' : 'Server URL';
+    $('url').placeholder = m3u ? 'http://provider.tv/get.php?…' : 'http://provider.tv:8080';
+    show('f-username', !m3u); show('f-password', !m3u);
+    show('f-epg', m3u || d.editing);
+    $('epg-label').textContent = m3u ? 'EPG / XMLTV URL (optional)' : 'Guide (XMLTV) URL (optional)';
+    show('pw-hint', d.editing && d.hasPassword);
+    $('name').value = d.name || ''; $('url').value = d.url || '';
+    $('username').value = d.username || ''; $('epgUrl').value = d.epgUrl || '';
+  }).catch(function () { message('Couldn\'t reach the TV. Make sure your phone is on the same Wi‑Fi, then scan again.', false); });
+
+  $('form').onsubmit = function (e) {
+    e.preventDefault();
+    var m3u = info.kind === 'M3U';
+    var body = { name: $('name').value.trim(), url: $('url').value.trim(), username: $('username').value.trim(),
+                 password: $('password').value, epgUrl: $('epgUrl').value.trim() };
+    if (!body.url) return message(m3u ? 'Enter the playlist URL.' : 'Enter the server URL.', false);
+    if (!m3u && !body.username) return message('Enter the username.', false);
+    if (!m3u && !body.password && !(info.editing && info.hasPassword)) return message('Enter the password.', false);
+    var save = $('save'); save.disabled = true; save.textContent = 'Checking…';
+    $('msg').className = 'msg';
+    fetch('submit' + q, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        message(d.message, d.ok);
+        if (d.ok) { save.textContent = 'Saved'; $('password').value = ''; } else { resetButton(); }
+      })
+      .catch(function () {
+        message('Lost the connection to the TV. Check the TV screen, then try again.', false);
+        resetButton();
+      });
+  };
+})();
+</script>
+</body>
+</html>

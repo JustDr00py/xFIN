@@ -9,4 +9,5 @@ android {
 dependencies {
     implementation(project(":data:sources"))
     implementation(project(":data:jellyfin"))
+    implementation(libs.zxing.core)
 }
