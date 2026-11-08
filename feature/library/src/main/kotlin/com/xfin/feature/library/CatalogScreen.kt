@@ -1,5 +1,25 @@
 package com.xfin.feature.library
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import com.xfin.core.designsystem.component.FocusSurface
+import com.xfin.core.designsystem.component.shimmer
+import com.xfin.core.model.LibraryCategory
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -74,7 +94,18 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 
-/** Every movie or every show across a server's libraries, like UHF's Movies and TV Shows tabs. */
+data class Shelves(
+    val sourceId: Long,
+    val loading: Boolean,
+    val latest: List<MediaItem> = emptyList(),
+    val categories: List<LibraryCategory> = emptyList(),
+    val error: String? = null,
+)
+
+/**
+ * Every movie or every show of a server: rows by category (the provider's categories, or genres
+ * on Jellyfin), each with "View all"; the heart switches to a grid of favorites.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class CatalogViewModel @Inject constructor(private val jellyfin: LibraryRepository) : ViewModel() {
@@ -101,6 +132,54 @@ class CatalogViewModel @Inject constructor(private val jellyfin: LibraryReposito
 
     private data class Query(val server: Long?, val kind: MediaKind, val sort: LibrarySort, val favoritesOnly: Boolean)
 
+    private val reload = MutableStateFlow(0)
+
+    /** The rows: recently added, then one per category (provider category or Jellyfin genre). */
+    val shelves: StateFlow<Shelves?> = combine(server, kind, reload) { s, k, _ -> s to k }
+        .flatMapLatest { (s, k) ->
+            if (s == null) {
+                kotlinx.coroutines.flow.flowOf<Shelves?>(null)
+            } else {
+                flow<Shelves?> {
+                    emit(Shelves(s, loading = true))
+                    emit(
+                        try {
+                            coroutineScope {
+                                val latest = async { runCatching { jellyfin.latestOf(s, k) }.getOrDefault(emptyList()) }
+                                val categories = async { jellyfin.categories(s, k) }
+                                Shelves(s, loading = false, latest = latest.await(), categories = categories.await())
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Shelves(s, loading = false, error = e.message ?: "Something went wrong")
+                        },
+                    )
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val rows = HashMap<String, MutableStateFlow<List<MediaItem>?>>()
+
+    /** A category row's first titles in the current sort, loaded the first time the row is shown. */
+    fun row(sourceId: Long, categoryId: String): StateFlow<List<MediaItem>?> {
+        val k = kind.value
+        val sort = _sort.value
+        return rows.getOrPut("$sourceId|$k|$sort|$categoryId") {
+            MutableStateFlow<List<MediaItem>?>(null).also { flow ->
+                viewModelScope.launch {
+                    flow.value = runCatching { jellyfin.categoryItems(sourceId, k, categoryId, sort) }.getOrDefault(emptyList())
+                }
+            }
+        }
+    }
+
+    fun retry() {
+        rows.clear()
+        reload.value++
+    }
+
     fun toggleFavorites() {
         _favoritesOnly.value = !_favoritesOnly.value
     }
@@ -122,6 +201,7 @@ class CatalogViewModel @Inject constructor(private val jellyfin: LibraryReposito
 internal fun CatalogScreen(
     kind: MediaKind,
     onOpenItem: (sourceId: Long, itemId: String) -> Unit,
+    onOpenCategory: (CategoryGridRoute) -> Unit,
     onSearch: () -> Unit,
     onConnect: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -185,6 +265,16 @@ internal fun CatalogScreen(
                 }
             }
         }
+        if (!favoritesOnly) {
+            ShelfList(
+                viewModel = viewModel,
+                kind = kind,
+                sort = sort,
+                onOpenItem = onOpenItem,
+                onOpenCategory = onOpenCategory,
+            )
+            return@Column
+        }
         LazyVerticalGrid(
             // TV: ~6 posters a row, so a whole row and its titles fit under the header.
             columns = GridCells.Adaptive(if (isTv) 124.dp else 112.dp),
@@ -239,6 +329,172 @@ internal fun SortMenu(sort: LibrarySort, onSort: (LibrarySort) -> Unit) {
                         open = false
                     },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShelfList(
+    viewModel: CatalogViewModel,
+    kind: MediaKind,
+    sort: LibrarySort,
+    onOpenItem: (sourceId: Long, itemId: String) -> Unit,
+    onOpenCategory: (CategoryGridRoute) -> Unit,
+) {
+    val shelves by viewModel.shelves.collectAsStateWithLifecycle()
+    val isTv = LocalIsTv.current
+    val gutter = if (isTv) 40.dp else 20.dp
+    val posterWidth = if (isTv) 124.dp else 112.dp
+    val current = shelves
+    when {
+        current == null || current.loading -> LoadingShelves(gutter, posterWidth)
+        current.error != null -> EmptyState(
+            icon = Icons.Rounded.CloudOff,
+            title = "Couldn't load ${if (kind == MediaKind.SERIES) "series" else "movies"}",
+            message = current.error,
+            action = { TextButton(onClick = viewModel::retry) { Text("Try again") } },
+            modifier = Modifier.fillMaxSize(),
+        )
+        else -> LazyColumn(
+            contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(if (isTv) 28.dp else 22.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            val sourceId = current.sourceId
+            if (current.latest.isNotEmpty()) {
+                item(key = "latest") {
+                    Shelf(
+                        title = "Recently added",
+                        count = null,
+                        items = current.latest,
+                        gutter = gutter,
+                        posterWidth = posterWidth,
+                        onOpenItem = onOpenItem,
+                        onViewAll = {
+                            onOpenCategory(CategoryGridRoute(sourceId, kind.name, null, "Recently added", LibrarySort.ADDED.name))
+                        },
+                    )
+                }
+            }
+            items(current.categories, key = { "category-${it.id}" }) { category ->
+                // Keyed by sort so a new sort reloads the row.
+                val items by remember(sourceId, category.id, sort) { viewModel.row(sourceId, category.id) }.collectAsStateWithLifecycle()
+                Shelf(
+                    title = category.name,
+                    count = category.count,
+                    items = items,
+                    gutter = gutter,
+                    posterWidth = posterWidth,
+                    onOpenItem = onOpenItem,
+                    onViewAll = { onOpenCategory(CategoryGridRoute(sourceId, kind.name, category.id, category.name, sort.name)) },
+                )
+            }
+        }
+    }
+}
+
+/** One row: title (and count), posters scrolling sideways, and a "View all" card at the end. */
+@Composable
+private fun Shelf(
+    title: String,
+    count: Int?,
+    items: List<MediaItem>?,
+    gutter: Dp,
+    posterWidth: Dp,
+    onOpenItem: (sourceId: Long, itemId: String) -> Unit,
+    onViewAll: () -> Unit,
+) {
+    if (items != null && items.isEmpty()) return
+    val isTv = LocalIsTv.current
+    Column {
+        Row(
+            // Phones can tap the header; on TV the end card is the way in, so D-pad focus stays on posters.
+            Modifier
+                .fillMaxWidth()
+                .then(if (isTv) Modifier else Modifier.clickable(onClick = onViewAll))
+                .padding(start = gutter, end = gutter, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            count?.let {
+                Text(
+                    "%,d".format(it),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 10.dp),
+                )
+            }
+            if (!isTv) {
+                Spacer(Modifier.weight(1f))
+                Text("View all", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+        if (items == null) {
+            PosterPlaceholders(gutter, posterWidth)
+        } else {
+            LazyRow(
+                // Coming back to a row puts focus on the poster last focused in it.
+                modifier = Modifier.focusRestorer(),
+                contentPadding = PaddingValues(horizontal = gutter),
+                horizontalArrangement = Arrangement.spacedBy(if (isTv) 20.dp else 12.dp),
+            ) {
+                items(items, key = { it.id }) { item ->
+                    PosterCard(item, posterWidth, onClick = { onOpenItem(item.sourceId, item.id) })
+                }
+                if (count == null || count > items.size) {
+                    item(key = "view-all") { ViewAllCard(posterWidth, onViewAll) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ViewAllCard(width: Dp, onClick: () -> Unit) {
+    Column(Modifier.width(width)) {
+        FocusSurface(onClick = onClick, shape = MaterialTheme.shapes.medium) {
+            Box(
+                Modifier.fillMaxWidth().aspectRatio(2f / 3f).background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Text(
+                        "View all",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PosterPlaceholders(gutter: Dp, posterWidth: Dp) {
+    Row(Modifier.padding(start = gutter), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        repeat(7) {
+            Box(Modifier.width(posterWidth).aspectRatio(2f / 3f).clip(MaterialTheme.shapes.medium).shimmer())
+        }
+    }
+}
+
+@Composable
+private fun LoadingShelves(gutter: Dp, posterWidth: Dp) {
+    Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
+        repeat(2) {
+            Column {
+                Box(Modifier.padding(start = gutter).width(160.dp).height(18.dp).clip(MaterialTheme.shapes.extraSmall).shimmer())
+                Spacer(Modifier.height(12.dp))
+                PosterPlaceholders(gutter, posterWidth)
             }
         }
     }

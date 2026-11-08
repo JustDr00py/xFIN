@@ -50,6 +50,7 @@ data class SourceEntity(
     indices = [
         Index(value = ["sourceId", "generation", "kind", "added"]),
         Index(value = ["sourceId", "generation", "kind", "name"]),
+        Index(value = ["sourceId", "generation", "kind", "category"]),
     ],
 )
 data class VodItemEntity(
@@ -111,6 +112,25 @@ data class VodFavoriteEntity(
     val kind: String,
     val providerId: Long,
     val addedAt: Long,
+)
+
+/**
+ * The provider's order of its VOD categories, so rows follow the provider's own arrangement.
+ * Items reference a category by [name] (see [VodItemEntity.category]); replaced on each import.
+ */
+@Entity(
+    tableName = "vod_categories",
+    primaryKeys = ["sourceId", "kind", "name"],
+    foreignKeys = [
+        ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE),
+    ],
+)
+data class VodCategoryEntity(
+    val sourceId: Long,
+    /** "movie" or "series", as in [VodItemEntity.kind]. */
+    val kind: String,
+    val name: String,
+    val position: Int,
 )
 
 @Entity(

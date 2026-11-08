@@ -13,6 +13,10 @@ data object LibraryRoute
 @Serializable
 data class LibraryGridRoute(val sourceId: Long, val viewId: String, val name: String, val collectionType: String?)
 
+/** A row of the Movies or Series tab in full; [categoryId] null is every title. [kind] and [sort] are enum names. */
+@Serializable
+data class CategoryGridRoute(val sourceId: Long, val kind: String, val categoryId: String?, val name: String, val sort: String)
+
 @Serializable
 data class ItemRoute(val sourceId: Long, val itemId: String)
 
@@ -44,6 +48,7 @@ data class SearchRoute(val scope: String = SearchScope.LIBRARY.name)
 fun NavGraphBuilder.libraryScreens(
     onOpenItem: (sourceId: Long, itemId: String) -> Unit,
     onOpenLibrary: (LibraryGridRoute) -> Unit,
+    onOpenCategory: (CategoryGridRoute) -> Unit,
     onPlay: (sourceId: Long, itemId: String, startMs: Long, mediaSourceId: String?) -> Unit,
     onConnect: () -> Unit,
     onSearch: () -> Unit,
@@ -68,16 +73,19 @@ fun NavGraphBuilder.libraryScreens(
         }
     }
     composable<MoviesRoute> {
-        shell { CatalogScreen(MediaKind.MOVIE, onOpenItem = onOpenItem, onSearch = onSearch, onConnect = onConnect, onOpenSettings = onOpenSettings) }
+        shell { CatalogScreen(MediaKind.MOVIE, onOpenItem = onOpenItem, onOpenCategory = onOpenCategory, onSearch = onSearch, onConnect = onConnect, onOpenSettings = onOpenSettings) }
     }
     composable<ShowsRoute> {
-        shell { CatalogScreen(MediaKind.SERIES, onOpenItem = onOpenItem, onSearch = onSearch, onConnect = onConnect, onOpenSettings = onOpenSettings) }
+        shell { CatalogScreen(MediaKind.SERIES, onOpenItem = onOpenItem, onOpenCategory = onOpenCategory, onSearch = onSearch, onConnect = onConnect, onOpenSettings = onOpenSettings) }
     }
     composable<SearchRoute> {
         SearchScreen(onOpenItem = onOpenItem, onPlayChannel = onPlayChannel, onBack = onBack)
     }
     composable<LibraryGridRoute> {
         LibraryGridScreen(onOpenItem = onOpenItem, onBack = onBack)
+    }
+    composable<CategoryGridRoute> {
+        CategoryGridScreen(onOpenItem = onOpenItem, onBack = onBack)
     }
     composable<ItemRoute> {
         ItemDetailScreen(onOpenItem = onOpenItem, onPlay = onPlay, onBack = onBack)

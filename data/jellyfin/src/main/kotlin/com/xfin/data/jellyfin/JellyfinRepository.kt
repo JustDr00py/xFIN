@@ -11,6 +11,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import com.xfin.core.database.dao.SourceDao
 import com.xfin.core.database.entity.SourceEntity
 import com.xfin.core.model.ExternalSubtitle
+import com.xfin.core.model.LibraryCategory
 import com.xfin.core.model.LibraryView
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.jellyfin.sdk.api.client.ApiClient
+import org.jellyfin.sdk.api.client.extensions.genreApi
 import org.jellyfin.sdk.api.client.extensions.libraryApi
 import org.jellyfin.sdk.api.client.extensions.mediaInfoApi
 import org.jellyfin.sdk.api.client.extensions.mediaSegmentApi
@@ -169,6 +171,52 @@ class JellyfinRepository @Inject constructor(
                 isFavorite = favoritesOnly.takeIf { it },
             )
         }.flow
+
+    /** Genres that have movies (or shows), by name; Jellyfin's equivalent of a provider's categories. */
+    suspend fun genres(sourceId: Long, kind: MediaKind): List<LibraryCategory> = call(sourceId) { c ->
+        c.api.genreApi.getGenres(
+            userId = c.userId,
+            includeItemTypes = listOf(kind.itemKind()),
+            sortBy = listOf(ItemSortBy.SORT_NAME),
+            enableImages = false,
+        ).content.items.mapNotNull { g -> g.name?.let { LibraryCategory(id = g.id.toString(), name = it, count = null) } }
+    }
+
+    suspend fun genreItems(sourceId: Long, kind: MediaKind, genreId: String, sort: LibrarySort, limit: Int): List<MediaItem> =
+        call(sourceId) { c ->
+            c.api.libraryApi.getItems(
+                userId = c.userId,
+                genreIds = listOf(UUID.fromString(genreId)),
+                includeItemTypes = listOf(kind.itemKind()),
+                recursive = true,
+                sortBy = listOf(sort.by, ItemSortBy.SORT_NAME),
+                sortOrder = listOf(sort.order, SortOrder.ASCENDING),
+                limit = limit,
+                fields = ROW_FIELDS,
+                enableUserData = true,
+            ).content.items.map { it.toMediaItem(c.api, sourceId) }
+        }
+
+    fun pagedGenre(sourceId: Long, kind: MediaKind, genreId: String, sort: LibrarySort): Flow<PagingData<MediaItem>> =
+        Pager(PagingConfig(pageSize = 60, initialLoadSize = 60, enablePlaceholders = true)) {
+            ItemsPagingSource(sourceId, parentId = null, types = listOf(kind.itemKind()), sort = sort, genreId = genreId)
+        }.flow
+
+    /** Newest movies (or shows) across all libraries. */
+    suspend fun latestOf(sourceId: Long, kind: MediaKind, limit: Int): List<MediaItem> = call(sourceId) { c ->
+        c.api.libraryApi.getItems(
+            userId = c.userId,
+            includeItemTypes = listOf(kind.itemKind()),
+            recursive = true,
+            sortBy = listOf(ItemSortBy.DATE_CREATED),
+            sortOrder = listOf(SortOrder.DESCENDING),
+            limit = limit,
+            fields = ROW_FIELDS,
+            enableUserData = true,
+        ).content.items.map { it.toMediaItem(c.api, sourceId) }
+    }
+
+    private fun MediaKind.itemKind() = if (this == MediaKind.SERIES) BaseItemKind.SERIES else BaseItemKind.MOVIE
 
     /** The user's favorite movies and shows on a server. */
     suspend fun favorites(sourceId: Long, limit: Int = 24): List<MediaItem> = call(sourceId) { c ->
@@ -412,6 +460,7 @@ class JellyfinRepository @Inject constructor(
         private val types: List<BaseItemKind>,
         private val sort: LibrarySort,
         private val isFavorite: Boolean? = null,
+        private val genreId: String? = null,
     ) : PagingSource<Int, MediaItem>() {
         override fun getRefreshKey(state: PagingState<Int, MediaItem>): Int? =
             state.anchorPosition?.let { (it - state.config.initialLoadSize / 2).coerceAtLeast(0) }
@@ -425,6 +474,7 @@ class JellyfinRepository @Inject constructor(
                     includeItemTypes = types,
                     recursive = types.isNotEmpty(),
                     isFavorite = isFavorite,
+                    genreIds = genreId?.let { listOf(UUID.fromString(it)) },
                     sortBy = listOf(sort.by, ItemSortBy.SORT_NAME),
                     sortOrder = listOf(sort.order, SortOrder.ASCENDING),
                     startIndex = start,

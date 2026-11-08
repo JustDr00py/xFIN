@@ -148,3 +148,18 @@ internal val MIGRATION_8_9 = object : Migration(8, 9) {
         )
     }
 }
+
+/** v10: provider category order for VOD rows, and an index to list a category's titles quickly. */
+internal val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `vod_categories` (`sourceId` INTEGER NOT NULL, `kind` TEXT NOT NULL, " +
+                "`name` TEXT NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`sourceId`, `kind`, `name`), " +
+                "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_vod_items_sourceId_generation_kind_category` ON `vod_items` " +
+                "(`sourceId`, `generation`, `kind`, `category`)",
+        )
+    }
+}

@@ -168,6 +168,7 @@ fun XfinNavHost(
         libraryScreens(
             onOpenItem = { sourceId, itemId -> navController.navigate(ItemRoute(sourceId, itemId)) },
             onOpenLibrary = { navController.navigate(it) },
+            onOpenCategory = { navController.navigate(it) },
             onPlay = { sourceId, itemId, startMs, mediaSourceId ->
                 navController.navigate(VodPlayerRoute(sourceId, itemId, startMs, mediaSourceId))
             },

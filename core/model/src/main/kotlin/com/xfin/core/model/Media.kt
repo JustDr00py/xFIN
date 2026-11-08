@@ -63,6 +63,12 @@ enum class SegmentType { INTRO, RECAP, OUTRO }
 data class MediaSegment(val type: SegmentType, val startMs: Long, val endMs: Long)
 
 /** A top-level library ("Movies", "Shows") on a server. */
+/**
+ * A shelf of movies or shows: an Xtream provider's category or a Jellyfin genre. [count] is
+ * known for Xtream (imported locally) and null for Jellyfin.
+ */
+data class LibraryCategory(val id: String, val name: String, val count: Int?)
+
 data class LibraryView(
     val id: String,
     val sourceId: Long,

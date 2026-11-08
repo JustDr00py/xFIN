@@ -7,10 +7,16 @@ import androidx.paging.PagingData
 import androidx.paging.map
 import com.xfin.core.database.dao.SourceDao
 import com.xfin.core.database.dao.VodDao
+import com.xfin.core.database.dao.VOD_ORDER_ADDED
+import com.xfin.core.database.dao.VOD_ORDER_NAME
+import com.xfin.core.database.dao.VOD_ORDER_RATING
+import com.xfin.core.database.dao.VOD_ORDER_YEAR
 import com.xfin.core.database.entity.SourceEntity
+import com.xfin.core.database.entity.VodCategoryEntity
 import com.xfin.core.database.entity.VodFavoriteEntity
 import com.xfin.core.database.entity.VodItemEntity
 import com.xfin.core.database.entity.VodProgressEntity
+import com.xfin.core.model.LibraryCategory
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
 import com.xfin.core.model.SourceType
@@ -77,8 +83,10 @@ class VodRepository @Inject internal constructor(
         val creds = credentials.xtream(source)
         val generation = source.vodGeneration + 1
         vodDao.deleteGeneration(sourceId, generation)
-        val movieCats = runCatching { xtream.vodCategories(creds) }.getOrDefault(emptyList()).associate { it.id to it.name }
-        val seriesCats = runCatching { xtream.seriesCategories(creds) }.getOrDefault(emptyList()).associate { it.id to it.name }
+        val movieCatList = runCatching { xtream.vodCategories(creds) }.getOrDefault(emptyList())
+        val seriesCatList = runCatching { xtream.seriesCategories(creds) }.getOrDefault(emptyList())
+        val movieCats = movieCatList.associate { it.id to it.name }
+        val seriesCats = seriesCatList.associate { it.id to it.name }
 
         val movies = Perf.time("vod movies #$sourceId") {
             importList(runCatching { xtream.download(creds, "get_vod_streams") }.getOrNull()) { file, emit ->
@@ -125,6 +133,14 @@ class VodRepository @Inject internal constructor(
             }
         }
         Perf.log("vod #$sourceId: $movies movies, $series series")
+        // Keep the previous order if the provider's category lists didn't load this time.
+        if (movieCatList.isNotEmpty() || seriesCatList.isNotEmpty()) {
+            vodDao.deleteCategories(sourceId)
+            vodDao.insertCategories(
+                movieCatList.mapIndexed { i, c -> VodCategoryEntity(sourceId, KIND_MOVIE, c.name, i) } +
+                    seriesCatList.mapIndexed { i, c -> VodCategoryEntity(sourceId, KIND_SERIES, c.name, i) },
+            )
+        }
         vodDao.swap(sourceId, generation, movies, series, System.currentTimeMillis())
         while (vodDao.deleteOtherGenerations(sourceId, generation, 5_000) > 0) Unit
     }
@@ -178,6 +194,31 @@ class VodRepository @Inject internal constructor(
                 VodSort.RATING -> vodDao.pageByRating(sourceId, k)
             }
         }.flow.map { page -> page.map { it.toItem() } }
+    }
+
+    /** Categories with titles, in the provider's order; titles without one come last as "Other". */
+    suspend fun categories(sourceId: Long, kind: MediaKind): List<LibraryCategory> =
+        vodDao.categories(sourceId, kind.vodKind()).map { c ->
+            LibraryCategory(id = c.name ?: OTHER_CATEGORY, name = c.name ?: "Other", count = c.count)
+        }
+
+    suspend fun categoryItems(sourceId: Long, kind: MediaKind, categoryId: String, sort: VodSort, limit: Int): List<MediaItem> =
+        vodDao.categoryItems(sourceId, kind.vodKind(), categoryId.categoryName(), sort.orderBy(), limit).map { it.toItem() }
+
+    fun pagedCategory(sourceId: Long, kind: MediaKind, categoryId: String, sort: VodSort): Flow<PagingData<MediaItem>> =
+        Pager(PagingConfig(pageSize = 60, enablePlaceholders = true)) {
+            vodDao.pageCategory(sourceId, kind.vodKind(), categoryId.categoryName(), sort.orderBy())
+        }.flow.map { page -> page.map { it.toItem() } }
+
+    private fun MediaKind.vodKind() = if (this == MediaKind.SERIES) KIND_SERIES else KIND_MOVIE
+
+    private fun String.categoryName(): String? = takeUnless { it == OTHER_CATEGORY }
+
+    private fun VodSort.orderBy() = when (this) {
+        VodSort.NAME -> VOD_ORDER_NAME
+        VodSort.ADDED -> VOD_ORDER_ADDED
+        VodSort.YEAR -> VOD_ORDER_YEAR
+        VodSort.RATING -> VOD_ORDER_RATING
     }
 
     suspend fun latest(sourceId: Long, kind: MediaKind, limit: Int): List<MediaItem> =
@@ -413,11 +454,14 @@ class VodRepository @Inject internal constructor(
     private fun String?.splitGenres(): List<String> =
         this?.split(',', '/', '|')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
 
-    private companion object {
-        const val KIND_MOVIE = "movie"
-        const val KIND_SERIES = "series"
-        const val KIND_EPISODE = "episode"
-        const val BATCH = 1_000
+    companion object {
+        private const val KIND_MOVIE = "movie"
+        private const val KIND_SERIES = "series"
+        private const val KIND_EPISODE = "episode"
+        private const val BATCH = 1_000
+
+        /** Id of the "Other" category: titles the provider didn't file under a known category. */
+        private const val OTHER_CATEGORY = "xfin:other"
     }
 }
 

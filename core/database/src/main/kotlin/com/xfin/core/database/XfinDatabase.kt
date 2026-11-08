@@ -7,6 +7,7 @@ import com.xfin.core.database.dao.BackupDao
 import com.xfin.core.database.dao.ChannelDao
 import com.xfin.core.database.dao.ProgramDao
 import com.xfin.core.database.dao.VodDao
+import com.xfin.core.database.entity.VodCategoryEntity
 import com.xfin.core.database.entity.VodFavoriteEntity
 import com.xfin.core.database.entity.VodItemEntity
 import com.xfin.core.database.entity.VodProgressEntity
@@ -37,8 +38,9 @@ import com.xfin.core.database.entity.SourceEntity
         VodProgressEntity::class,
         VodFavoriteEntity::class,
         ProgramFtsEntity::class,
+        VodCategoryEntity::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2)],
 )

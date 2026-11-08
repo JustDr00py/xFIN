@@ -1,6 +1,7 @@
 package com.xfin.data.library
 
 import androidx.paging.PagingData
+import com.xfin.core.model.LibraryCategory
 import com.xfin.core.model.LibraryView
 import com.xfin.core.model.MediaItem
 import com.xfin.core.model.MediaKind
@@ -73,6 +74,26 @@ class LibraryRepository @Inject constructor(
             favoritesOnly -> vod.pagedFavorites(sourceId, kind)
             else -> vod.paged(sourceId, kind, sort.toVod())
         }
+
+    /** Shelves for the Movies and Series tabs: the provider's categories (Xtream) or genres (Jellyfin). */
+    suspend fun categories(sourceId: Long, kind: MediaKind): List<LibraryCategory> =
+        if (isVod(sourceId)) vod.categories(sourceId, kind) else jellyfin.genres(sourceId, kind)
+
+    /** The first titles of a category, for its row. */
+    suspend fun categoryItems(sourceId: Long, kind: MediaKind, categoryId: String, sort: LibrarySort, limit: Int = 20): List<MediaItem> =
+        if (isVod(sourceId)) {
+            vod.categoryItems(sourceId, kind, categoryId, sort.toVod(), limit)
+        } else {
+            jellyfin.genreItems(sourceId, kind, categoryId, sort, limit)
+        }
+
+    /** Every title in a category, for its "View all" grid. */
+    suspend fun pagedCategory(sourceId: Long, kind: MediaKind, categoryId: String, sort: LibrarySort): Flow<PagingData<MediaItem>> =
+        if (isVod(sourceId)) vod.pagedCategory(sourceId, kind, categoryId, sort.toVod()) else jellyfin.pagedGenre(sourceId, kind, categoryId, sort)
+
+    /** Recently added movies or shows across a source, for the top row. */
+    suspend fun latestOf(sourceId: Long, kind: MediaKind, limit: Int = 20): List<MediaItem> =
+        if (isVod(sourceId)) vod.latest(sourceId, kind, limit) else jellyfin.latestOf(sourceId, kind, limit)
 
     /** Favorite movies and shows: Jellyfin's own (synced with its other apps), or kept on the device for Xtream. */
     suspend fun favorites(sourceId: Long, limit: Int = 24): List<MediaItem> =
