@@ -9,6 +9,7 @@ import androidx.room.Transaction
 import com.xfin.core.database.entity.ChannelMatchKeys
 import com.xfin.core.database.entity.ChannelRow
 import com.xfin.core.database.entity.FavoriteEntity
+import com.xfin.core.database.entity.GroupIconEntity
 import com.xfin.core.database.entity.GroupRow
 import com.xfin.core.database.entity.HiddenGroupEntity
 import com.xfin.core.database.entity.HistoryEntity
@@ -92,10 +93,24 @@ interface ChannelDao {
 
     @Query(
         """SELECT groupName AS name, COUNT(*) AS channelCount,
-        (groupName IN (SELECT name FROM hidden_groups)) AS hidden
+        (groupName IN (SELECT name FROM hidden_groups)) AS hidden,
+        (SELECT gi.iconUrl FROM group_icons gi WHERE gi.name = channels.groupName ORDER BY gi.sourceId LIMIT 1) AS iconUrl
         FROM channels GROUP BY groupName ORDER BY MIN(sourceId), MIN(sortIndex)""",
     )
     fun observeGroups(): Flow<List<GroupRow>>
+
+    @Query("DELETE FROM group_icons WHERE sourceId = :sourceId")
+    suspend fun clearGroupIcons(sourceId: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGroupIcons(icons: List<GroupIconEntity>)
+
+    /** Makes [icons] the source's group icons (an empty list removes them all). */
+    @Transaction
+    suspend fun replaceGroupIcons(sourceId: Long, icons: List<GroupIconEntity>) {
+        clearGroupIcons(sourceId)
+        icons.chunked(500).forEach { insertGroupIcons(it) }
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun hideGroup(group: HiddenGroupEntity)

@@ -92,6 +92,7 @@ slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 jellyfin-sdk = { module = "org.jellyfin.sdk:jellyfin-core", version.ref = "jellyfin-sdk" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+coil-svg = { module = "io.coil-kt.coil3:coil-svg", version.ref = "coil" }
 
 # QR codes (encoder only; no camera)
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }

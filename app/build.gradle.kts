@@ -77,5 +77,6 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.tv.material)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.coil.svg)
     implementation(libs.androidx.hilt.work)
 }

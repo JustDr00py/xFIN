@@ -17,6 +17,7 @@ import com.xfin.core.database.entity.ChannelFtsEntity
 import com.xfin.core.database.entity.StagedChannelEntity
 import com.xfin.core.database.entity.EpgChannelEntity
 import com.xfin.core.database.entity.FavoriteEntity
+import com.xfin.core.database.entity.GroupIconEntity
 import com.xfin.core.database.entity.HiddenGroupEntity
 import com.xfin.core.database.entity.HistoryEntity
 import com.xfin.core.database.entity.ProgramEntity
@@ -39,8 +40,9 @@ import com.xfin.core.database.entity.SourceEntity
         VodFavoriteEntity::class,
         ProgramFtsEntity::class,
         VodCategoryEntity::class,
+        GroupIconEntity::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2)],
 )

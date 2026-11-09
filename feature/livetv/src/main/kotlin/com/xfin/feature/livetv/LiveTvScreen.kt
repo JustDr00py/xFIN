@@ -1,5 +1,7 @@
 package com.xfin.feature.livetv
 
+import com.xfin.core.designsystem.component.CategoryIcon
+import com.xfin.core.model.CategoryName
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -115,20 +117,26 @@ private fun CategoryTile(category: Category, onClick: () -> Unit, modifier: Modi
         ChannelFilter.All -> Icons.Rounded.LiveTv
         else -> null
     }
+    val name = remember(category.label, icon) { if (icon == null) CategoryName.of(category.label) else CategoryName(null, category.label) }
     FocusSurface(onClick = onClick, modifier = modifier.fillMaxWidth().heightIn(min = 92.dp)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Same slot for every tile so labels line up, with or without a group icon.
                 if (icon != null) {
-                    Icon(
-                        icon,
-                        null,
-                        tint = if (category.filter == ChannelFilter.Favorites) XfinColors.Favorite else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
+                    Box(Modifier.size(CATEGORY_ICON_SIZE), contentAlignment = Alignment.Center) {
+                        Icon(
+                            icon,
+                            null,
+                            tint = if (category.filter == ChannelFilter.Favorites) XfinColors.Favorite else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    }
+                } else {
+                    CategoryIcon(name, category.iconUrl, size = CATEGORY_ICON_SIZE)
                 }
+                Spacer(Modifier.width(10.dp))
                 Text(
-                    category.label,
+                    name.label,
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -139,9 +147,11 @@ private fun CategoryTile(category: Category, onClick: () -> Unit, modifier: Modi
                     if (it == 1) "1 channel" else "%,d channels".format(it),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 6.dp),
+                    modifier = Modifier.padding(start = CATEGORY_ICON_SIZE + 10.dp, top = 6.dp),
                 )
             }
         }
     }
 }
+
+private val CATEGORY_ICON_SIZE = 32.dp

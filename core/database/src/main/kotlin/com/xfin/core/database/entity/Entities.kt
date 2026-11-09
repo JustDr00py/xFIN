@@ -245,6 +245,24 @@ data class HistoryEntity(
     val watchedAt: Long,
 )
 
+/**
+ * Icons a source's provider sent for its live categories (Xtream `category_icon`), keyed by the
+ * group name channels carry. Replaced on each import; only groups that have an icon get a row.
+ */
+@Entity(
+    tableName = "group_icons",
+    primaryKeys = ["sourceId", "name"],
+    foreignKeys = [
+        ForeignKey(entity = SourceEntity::class, parentColumns = ["id"], childColumns = ["sourceId"], onDelete = ForeignKey.CASCADE),
+    ],
+    indices = [Index(value = ["name"])],
+)
+data class GroupIconEntity(
+    val sourceId: Long,
+    val name: String,
+    val iconUrl: String,
+)
+
 @Entity(tableName = "hidden_groups")
 data class HiddenGroupEntity(
     @PrimaryKey val name: String,
@@ -334,4 +352,5 @@ data class GroupRow(
     val name: String,
     val channelCount: Int,
     val hidden: Boolean,
+    val iconUrl: String?,
 )

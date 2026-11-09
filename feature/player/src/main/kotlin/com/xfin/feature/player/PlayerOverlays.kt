@@ -545,13 +545,17 @@ internal fun PanelItem(
     selected: Boolean = false,
     leading: ImageVector? = null,
     leadingTint: Color = Color.White,
+    leadingContent: (@Composable () -> Unit)? = null,
 ) {
     val content: @Composable () -> Unit = {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (leading != null) {
+            if (leadingContent != null) {
+                leadingContent()
+                Spacer(Modifier.width(12.dp))
+            } else if (leading != null) {
                 Icon(leading, null, tint = leadingTint, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(12.dp))
             }

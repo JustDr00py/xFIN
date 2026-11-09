@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-data class GuideTab(val filter: ChannelFilter, val label: String)
+data class GuideTab(val filter: ChannelFilter, val label: String, val iconUrl: String? = null)
 
 /** The time span the grid covers, in epoch millis. */
 data class GuideWindow(val start: Long, val end: Long)
@@ -76,7 +76,7 @@ class GuideViewModel @Inject constructor(
         buildList {
             if (hasFavorites) add(GuideTab(ChannelFilter.Favorites, "Favorites"))
             add(GuideTab(ChannelFilter.All, "All channels"))
-            groups.filterNot { it.hidden }.forEach { add(GuideTab(ChannelFilter.Group(it.name), it.name)) }
+            groups.filterNot { it.hidden }.forEach { add(GuideTab(ChannelFilter.Group(it.name), it.name, it.iconUrl)) }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 

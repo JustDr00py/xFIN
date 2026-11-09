@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 /** A tile on the Live TV page; opening one shows the guide for those channels. */
-data class Category(val filter: ChannelFilter, val label: String, val count: Int? = null)
+data class Category(val filter: ChannelFilter, val label: String, val count: Int? = null, val iconUrl: String? = null)
 
 @HiltViewModel
 class LiveTvViewModel @Inject constructor(
@@ -33,7 +33,7 @@ class LiveTvViewModel @Inject constructor(
             if (hasFavorites) add(Category(ChannelFilter.Favorites, "Favorites"))
             if (hasHistory) add(Category(ChannelFilter.Recent, "Recent"))
             add(Category(ChannelFilter.All, "All channels", visible.sumOf { it.channelCount }))
-            visible.forEach { add(Category(ChannelFilter.Group(it.name), it.name, it.channelCount)) }
+            visible.forEach { add(Category(ChannelFilter.Group(it.name), it.name, it.channelCount, it.iconUrl)) }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 

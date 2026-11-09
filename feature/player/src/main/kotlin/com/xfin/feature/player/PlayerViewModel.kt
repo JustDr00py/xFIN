@@ -146,7 +146,7 @@ class PlayerViewModel @Inject constructor(
             if (hasFavorites) add(PlayerCategory(ChannelFilter.Favorites, "Favorites"))
             if (hasHistory) add(PlayerCategory(ChannelFilter.Recent, "Recent"))
             add(PlayerCategory(ChannelFilter.All, "All channels"))
-            groups.filterNot { it.hidden }.forEach { add(PlayerCategory(ChannelFilter.Group(it.name), it.name)) }
+            groups.filterNot { it.hidden }.forEach { add(PlayerCategory(ChannelFilter.Group(it.name), it.name, it.iconUrl)) }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -403,4 +403,4 @@ class PlayerViewModel @Inject constructor(
 
 private fun floorMinute(time: Long) = time / 60_000 * 60_000
 
-data class PlayerCategory(val filter: ChannelFilter, val label: String)
+data class PlayerCategory(val filter: ChannelFilter, val label: String, val iconUrl: String? = null)

@@ -42,7 +42,7 @@ internal fun ChannelRow.toModel() = Channel(
     epgId = channel.epgId,
 )
 
-internal fun GroupRow.toModel() = ChannelGroup(name = name, channelCount = channelCount, hidden = hidden)
+internal fun GroupRow.toModel() = ChannelGroup(name = name, channelCount = channelCount, hidden = hidden, iconUrl = iconUrl)
 
 internal const val UNCATEGORIZED = "Uncategorized"
 

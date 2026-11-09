@@ -37,8 +37,16 @@ internal object XtreamParsing {
         (root as? JsonArray).orEmpty().mapNotNull { element ->
             val obj = element as? JsonObject ?: return@mapNotNull null
             val id = obj.string("category_id") ?: return@mapNotNull null
-            XtreamCategory(id, obj.string("category_name")?.trim().orEmpty().ifEmpty { "Uncategorized" })
+            XtreamCategory(
+                id = id,
+                name = obj.string("category_name")?.trim().orEmpty().ifEmpty { "Uncategorized" },
+                icon = obj.string("category_icon")?.trim()?.takeIf(::isHttpUrl),
+            )
         }
+
+    /** Only absolute http(s) URLs are used as images; anything else (empty, relative, junk) is ignored. */
+    private fun isHttpUrl(value: String): Boolean =
+        value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true)
 
     fun liveStream(element: JsonElement): XtreamLiveStream? {
         val obj = element as? JsonObject ?: return null

@@ -1,5 +1,7 @@
 package com.xfin.feature.settings
 
+import com.xfin.core.designsystem.component.CategoryIcon
+import com.xfin.core.model.CategoryName
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -167,8 +169,10 @@ internal fun ChannelGroupsScreen(onBack: () -> Unit, viewModel: ChannelGroupsVie
                     }
                 }
                 items(state.groups, key = { it.name }) { group ->
+                    val name = remember(group.name) { CategoryName.of(group.name) }
                     ListItem(
-                        headlineContent = { Text(group.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        leadingContent = { CategoryIcon(name, group.iconUrl, size = 32.dp) },
+                        headlineContent = { Text(name.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         supportingContent = { Text("%,d channels".format(group.channelCount)) },
                         trailingContent = { Checkbox(checked = !group.hidden, onCheckedChange = { viewModel.toggle(group) }) },
                         colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),

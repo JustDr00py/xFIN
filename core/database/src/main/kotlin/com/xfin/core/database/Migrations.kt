@@ -163,3 +163,15 @@ internal val MIGRATION_9_10 = object : Migration(9, 10) {
         )
     }
 }
+
+/** v11: provider icons for live channel groups (Xtream `category_icon`); filled by the next import. */
+internal val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `group_icons` (`sourceId` INTEGER NOT NULL, `name` TEXT NOT NULL, " +
+                "`iconUrl` TEXT NOT NULL, PRIMARY KEY(`sourceId`, `name`), " +
+                "FOREIGN KEY(`sourceId`) REFERENCES `sources`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_group_icons_name` ON `group_icons` (`name`)")
+    }
+}

@@ -9,6 +9,7 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
+import coil3.svg.SvgDecoder
 import dagger.hilt.android.HiltAndroidApp
 import okhttp3.OkHttpClient
 import javax.inject.Inject
@@ -33,7 +34,11 @@ class XfinApplication : Application(), SingletonImageLoader.Factory, Configurati
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
-            .components { add(OkHttpNetworkFetcherFactory(callFactory = { okHttp.get() })) }
+            .components {
+                add(OkHttpNetworkFetcherFactory(callFactory = { okHttp.get() }))
+                // Category icons may be SVG (logos are usually PNG/JPEG/WebP, which work out of the box).
+                add(SvgDecoder.Factory())
+            }
             .crossfade(true)
             .build()
 }

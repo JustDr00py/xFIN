@@ -1,5 +1,10 @@
 package com.xfin.feature.guide
 
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.LiveTv
+import com.xfin.core.designsystem.component.CategoryIcon
+import com.xfin.core.model.CategoryName
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -238,7 +243,10 @@ private fun GroupPicker(
                             onClick = { onSelect(tab.filter) },
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                         ) {
-                            Text(tab.label, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            GroupIcon(tab)
+                            Spacer(Modifier.width(12.dp))
+                            val label = if (tab.filter is ChannelFilter.Group) CategoryName.of(tab.label).label else tab.label
+                            Text(label, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (tab.filter == selected) Icon(Icons.Rounded.Check, "Selected")
                         }
                     }
@@ -247,6 +255,26 @@ private fun GroupPicker(
         }
     }
 }
+
+/** A fixed-width icon slot so every picker entry's name lines up. */
+@Composable
+private fun GroupIcon(tab: GuideTab) {
+    val vector = when (tab.filter) {
+        ChannelFilter.Favorites -> Icons.Rounded.Star
+        ChannelFilter.Recent -> Icons.Rounded.History
+        ChannelFilter.All -> Icons.Rounded.LiveTv
+        is ChannelFilter.Group -> null
+    }
+    if (vector != null) {
+        Box(Modifier.size(GROUP_ICON_SIZE), contentAlignment = Alignment.Center) {
+            Icon(vector, null, modifier = Modifier.size(20.dp))
+        }
+    } else {
+        CategoryIcon(CategoryName.of(tab.label), tab.iconUrl, size = GROUP_ICON_SIZE)
+    }
+}
+
+private val GROUP_ICON_SIZE = 26.dp
 
 /** The guide's top band while a channel plays in the preview (TV). */
 private val PREVIEW_HEIGHT = 190.dp

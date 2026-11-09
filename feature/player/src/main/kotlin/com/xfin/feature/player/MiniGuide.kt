@@ -1,5 +1,15 @@
 package com.xfin.feature.player
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.LiveTv
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.CompositionLocalProvider
+import com.xfin.core.designsystem.component.CategoryIcon
+import com.xfin.core.model.CategoryName
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -160,6 +170,28 @@ internal fun MiniGuide(
     }
 }
 
+/** A fixed-size icon slot so every category's name lines up. */
+@Composable
+private fun PlayerCategoryIcon(category: PlayerCategory, name: CategoryName) {
+    val vector = when (category.filter) {
+        ChannelFilter.Favorites -> Icons.Rounded.Star
+        ChannelFilter.Recent -> Icons.Rounded.History
+        ChannelFilter.All -> Icons.Rounded.LiveTv
+        is ChannelFilter.Group -> null
+    }
+    CompositionLocalProvider(LocalContentColor provides Color.White) {
+        if (vector != null) {
+            Box(Modifier.size(CATEGORY_ICON_SIZE), contentAlignment = Alignment.Center) {
+                Icon(vector, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+        } else {
+            CategoryIcon(name, category.iconUrl, size = CATEGORY_ICON_SIZE)
+        }
+    }
+}
+
+private val CATEGORY_ICON_SIZE = 26.dp
+
 /** The categories beside the mini guide: pick one to browse its channels. */
 @Composable
 internal fun CategoryColumn(
@@ -182,10 +214,14 @@ internal fun CategoryColumn(
     ) {
         item { PanelHeader("Categories") }
         items(categories, key = { it.filter.toString() }) { category ->
+            val name = remember(category) {
+                if (category.filter is ChannelFilter.Group) CategoryName.of(category.label) else CategoryName(null, category.label)
+            }
             PanelItem(
-                label = category.label,
+                label = name.label,
                 selected = category.filter == selected,
                 onClick = { onSelect(category.filter) },
+                leadingContent = { PlayerCategoryIcon(category, name) },
                 modifier = if (category.filter == selected) Modifier.focusRequester(focus) else Modifier,
             )
         }

@@ -40,6 +40,8 @@ data class ChannelGroup(
     val name: String,
     val channelCount: Int,
     val hidden: Boolean = false,
+    /** Icon the provider sent for this group (Xtream live categories only), if any. */
+    val iconUrl: String? = null,
 )
 
 /** Which list of channels the user is browsing; also defines zapping order in the player. */

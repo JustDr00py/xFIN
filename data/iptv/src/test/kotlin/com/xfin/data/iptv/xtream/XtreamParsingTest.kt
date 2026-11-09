@@ -62,4 +62,22 @@ class XtreamParsingTest {
         val creds = XtreamCredentials("http://h:80", "user", "p/w")
         assertEquals("http://h:80/live/user/p%2Fw/9.ts", XtreamClient.liveStreamUrl(creds, "9", "ts"))
     }
+
+    @Test
+    fun `category icon is optional`() {
+        val categories = XtreamParsing.categories(
+            json(
+                """[
+                {"category_id":"12","category_name":"Sports","parent_id":0,"category_icon":"https://my-host/logos/uploads/sports.png"},
+                {"category_id":"13","category_name":"News","parent_id":0},
+                {"category_id":"14","category_name":"Kids","category_icon":""},
+                {"category_id":"15","category_name":"Music","category_icon":null},
+                {"category_id":"16","category_name":"Docs","category_icon":"/relative.png"}
+                ]""",
+            ),
+        )
+        assertEquals(listOf("12", "13", "14", "15", "16"), categories.map { it.id })
+        assertEquals("https://my-host/logos/uploads/sports.png", categories[0].icon)
+        assertEquals(listOf(null, null, null, null), categories.drop(1).map { it.icon })
+    }
 }

@@ -36,7 +36,12 @@ data class XtreamAccount(
     val timezone: String? = null,
 )
 
-data class XtreamCategory(val id: String, val name: String)
+data class XtreamCategory(
+    val id: String,
+    val name: String,
+    /** Optional absolute http(s) image URL some panels (MMP) send for live categories. */
+    val icon: String? = null,
+)
 
 data class XtreamLiveStream(
     val streamId: Long,

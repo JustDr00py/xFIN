@@ -6,6 +6,7 @@ import com.xfin.core.database.crypto.SecretCipher
 import com.xfin.core.database.dao.ChannelDao
 import com.xfin.core.database.dao.ProgramDao
 import com.xfin.core.database.dao.SourceDao
+import com.xfin.core.database.entity.GroupIconEntity
 import com.xfin.core.database.entity.StagedChannelEntity
 import com.xfin.core.database.entity.SourceEntity
 import com.xfin.core.model.RefreshState
@@ -256,6 +257,7 @@ class SourceRepository @Inject internal constructor(
                     } finally {
                         file.delete()
                     }
+                    channelDao.replaceGroupIcons(sourceId, groupIcons(sourceId, categories))
                 }
                 SourceType.JELLYFIN -> Unit
             }
@@ -380,6 +382,11 @@ class SourceRepository @Inject internal constructor(
             )
         }
     }
+
+    /** Group icons keyed the way [produceXtream] names groups; the first icon wins for duplicate names. */
+    private fun groupIcons(sourceId: Long, categories: List<XtreamCategory>): List<GroupIconEntity> =
+        categories.mapNotNull { category -> category.icon?.let { GroupIconEntity(sourceId, category.name, it) } }
+            .distinctBy { it.name }
 
     private fun defaultName(location: String): String =
         location.substringAfter("://").substringBefore('/').substringBefore('?').ifBlank { "Playlist" }
