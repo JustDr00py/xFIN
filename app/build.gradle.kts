@@ -29,8 +29,8 @@ android {
 
     defaultConfig {
         applicationId = "io.github.justdr00py.xfin"
-        versionCode = 17
-        versionName = "0.4.12"
+        versionCode = 18
+        versionName = "0.4.13"
     }
 
     buildTypes {
