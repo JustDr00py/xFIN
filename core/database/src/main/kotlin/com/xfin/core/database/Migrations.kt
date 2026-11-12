@@ -191,3 +191,10 @@ internal val MIGRATION_11_12 = object : Migration(11, 12) {
         db.execSQL("UPDATE `sources` SET `vodUpdatedAt` = NULL WHERE `type` = 'XTREAM'")
     }
 }
+
+/** v13: VOD title matching improved (any language-prefix separator, undated copies); re-import to regroup. */
+internal val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("UPDATE `sources` SET `vodUpdatedAt` = NULL WHERE `type` = 'XTREAM'")
+    }
+}

@@ -8,9 +8,9 @@ import java.text.Normalizer
  */
 object VodTitles {
     /** "[EN] ", "|EN| ", "(EN) " at the start of a name. */
-    private val LANG_BRACKET_PREFIX = Regex("""^\s*[|\[(]\s*[A-Za-z]{2,3}\s*[|\])]\s*""")
-    /** "EN | ", "EN - ", "EN: ", "EN| " at the start of a name. */
-    private val LANG_PREFIX = Regex("""^\s*[A-Za-z]{2,3}\s*[|:\-–]\s*""")
+    private val LANG_BRACKET_PREFIX = Regex("""^\s*[|\[(]\s*[A-Z]{2,3}\s*[|\])]\s*""")
+    /** "EN | ", "EN ▎ ", "EN - ", "EN: " at the start of a name: any symbol separates the code. */
+    private val LANG_PREFIX = Regex("""^\s*[A-Z]{2,3}\s*[^\p{L}\p{N}\s'"(\[]+\s*""")
     private val BRACKETS = Regex("""\[[^\]]*]|\{[^}]*}""")
     private val TRAILING_YEAR = Regex("""\s*[-–(\[]?\s*((?:19|20)\d{2})\s*[)\]]?\s*$""")
     private val QUALITY = Regex(
@@ -23,7 +23,10 @@ object VodTitles {
     private val EMPTY_PARENS = Regex("""\(\s*\)""")
     private val RESOLUTIONS = setOf("8K", "4K", "UHD", "2160P", "FHD", "1080P", "HD", "720P", "SD")
 
-    /** Copies with the same key are versions of one title. A year only matches the same year. */
+    /**
+     * Copies with the same key are versions of one title. A year only matches the same year; a key
+     * without one ("title|") can still join a title's only dated key at import (see VodDao).
+     */
     fun groupKey(name: String, year: Int?): String {
         val (title, nameYear) = clean(name)
         val normalized = Normalizer.normalize(title, Normalizer.Form.NFD)

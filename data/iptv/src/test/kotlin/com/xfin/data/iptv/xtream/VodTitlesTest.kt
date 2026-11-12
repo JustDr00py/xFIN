@@ -13,6 +13,12 @@ class VodTitlesTest {
         assertEquals(a, VodTitles.groupKey("EN - Mamma Mia! (2008)", null))
         assertEquals(a, VodTitles.groupKey("EN| Mamma Mia! 4K", 2008))
         assertEquals(a, VodTitles.groupKey("[EN] Mamma Mia! [MULTI-SUB]", 2008))
+        assertEquals(a, VodTitles.groupKey("EN ▎ Mamma Mia!", 2008))
+        assertEquals(a, VodTitles.groupKey("EN - Mamma Mia! - 2008 [MULTI-SUB]", null))
+        assertEquals(
+            VodTitles.groupKey("EN ▎ Mamma Mia! I Have A Dream", 2023),
+            VodTitles.groupKey("EN - Mamma Mia! I Have A Dream (2023)", 2023),
+        )
     }
 
     @Test
@@ -31,6 +37,13 @@ class VodTitlesTest {
     fun `a year only matches the same year`() {
         assertNotEquals(VodTitles.groupKey("Dune", null), VodTitles.groupKey("Dune", 2021))
         assertEquals(VodTitles.groupKey("EN - Dune", null), VodTitles.groupKey("Dune [MULTI-SUB]", null))
+    }
+
+    @Test
+    fun `ordinary titles keep their start`() {
+        assertEquals("up|2009", VodTitles.groupKey("Up", 2009))
+        assertEquals("e t the extra terrestrial|1982", VodTitles.groupKey("E.T. the Extra-Terrestrial", 1982))
+        assertEquals("it|2017", VodTitles.groupKey("EN | It", 2017))
     }
 
     @Test

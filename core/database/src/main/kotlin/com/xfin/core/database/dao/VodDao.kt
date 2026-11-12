@@ -132,8 +132,23 @@ interface VodDao {
     )
     suspend fun setPrimaries(sourceId: Long, generation: Int)
 
+    /**
+     * Copies listed without a year ("title|") join their title's dated key when there is exactly
+     * one ("title|2008"); with two (a remake) it's unclear which, so they stay apart.
+     */
+    @Query(
+        """UPDATE vod_items SET groupKey = (
+            SELECT MIN(w.groupKey) FROM vod_items w WHERE w.sourceId = vod_items.sourceId AND w.generation = vod_items.generation
+            AND w.kind = vod_items.kind AND w.groupKey > vod_items.groupKey AND w.groupKey < vod_items.groupKey || 'A')
+        WHERE sourceId = :sourceId AND generation = :generation AND groupKey LIKE '%|' AND (
+            SELECT COUNT(DISTINCT w.groupKey) FROM vod_items w WHERE w.sourceId = vod_items.sourceId AND w.generation = vod_items.generation
+            AND w.kind = vod_items.kind AND w.groupKey > vod_items.groupKey AND w.groupKey < vod_items.groupKey || 'A') = 1""",
+    )
+    suspend fun joinUndated(sourceId: Long, generation: Int)
+
     @Transaction
     suspend fun markPrimaries(sourceId: Long, generation: Int) {
+        joinUndated(sourceId, generation)
         clearPrimaries(sourceId, generation)
         setPrimaries(sourceId, generation)
     }

@@ -42,7 +42,7 @@ import com.xfin.core.database.entity.SourceEntity
         VodCategoryEntity::class,
         GroupIconEntity::class,
     ],
-    version = 12,
+    version = 13,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
