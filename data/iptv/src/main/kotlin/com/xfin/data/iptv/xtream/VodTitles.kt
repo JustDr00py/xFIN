@@ -11,7 +11,9 @@ object VodTitles {
     private val LANG_BRACKET_PREFIX = Regex("""^\s*[|\[(]\s*[A-Z]{2,3}\s*[|\])]\s*""")
     /** "EN | ", "EN ▎ ", "EN - ", "EN: " at the start of a name: any symbol separates the code. */
     private val LANG_PREFIX = Regex("""^\s*[A-Z]{2,3}\s*[^\p{L}\p{N}\s'"(\[]+\s*""")
-    private val BRACKETS = Regex("""\[[^\]]*]|\{[^}]*}""")
+    // Android compiles these with ICU, which (unlike the JVM) rejects an unescaped "}": escape
+    // every literal bracket and brace.
+    private val BRACKETS = Regex("""\[[^\]]*\]|\{[^\}]*\}""")
     private val TRAILING_YEAR = Regex("""\s*[-–(\[]?\s*((?:19|20)\d{2})\s*[)\]]?\s*$""")
     private val QUALITY = Regex(
         """(?i)\b(?:4k|8k|uhd|fhd|hd|sd|hdr10\+?|hdr|dolby\s*vision|hevc|h\.?26[45]|x26[45]|2160p|1080p|720p|480p|multi[\s-]*subs?|multi|vostfr|dual[\s-]*audio)\b""",
