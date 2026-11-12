@@ -51,6 +51,7 @@ data class SourceEntity(
         Index(value = ["sourceId", "generation", "kind", "added"]),
         Index(value = ["sourceId", "generation", "kind", "name"]),
         Index(value = ["sourceId", "generation", "kind", "category"]),
+        Index(value = ["sourceId", "generation", "kind", "groupKey"]),
     ],
 )
 data class VodItemEntity(
@@ -69,6 +70,10 @@ data class VodItemEntity(
     val plot: String? = null,
     val genre: String? = null,
     val backdrop: String? = null,
+    /** Copies of one title share this key (see VodTitles); they're shown as versions of it. */
+    @ColumnInfo(defaultValue = "") val groupKey: String = "",
+    /** The copy that represents its group in lists that show each title once. */
+    @ColumnInfo(defaultValue = "1") val isPrimary: Boolean = true,
 )
 
 /** Local watch progress for sources that don't sync it themselves (Xtream VOD). */

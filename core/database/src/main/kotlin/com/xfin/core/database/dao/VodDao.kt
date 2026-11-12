@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.RawQuery
+import androidx.room.Transaction
 import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteQuery
 import com.xfin.core.database.entity.SourceEntity
@@ -18,6 +19,8 @@ import kotlinx.coroutines.flow.Flow
 /** Current generation only, so a running import is invisible until it is swapped in. */
 private const val CURRENT = "JOIN sources s ON s.id = v.sourceId AND s.vodGeneration = v.generation"
 private const val ITEMS = "SELECT v.* FROM vod_items v $CURRENT WHERE v.sourceId = :sourceId AND v.kind = :kind"
+/** One copy per title, for lists where duplicates would repeat (copies are versions of it). */
+private const val TITLES = "$ITEMS AND v.isPrimary = 1"
 
 /** ORDER BY clauses for category queries, matching the fixed sorts above. */
 const val VOD_ORDER_NAME = "v.name COLLATE NOCASE"
@@ -28,27 +31,31 @@ private val ORDERS = setOf(VOD_ORDER_NAME, VOD_ORDER_ADDED, VOD_ORDER_YEAR, VOD_
 
 @Dao
 interface VodDao {
-    @Query("$ITEMS ORDER BY v.name COLLATE NOCASE")
+    @Query("$TITLES ORDER BY v.name COLLATE NOCASE")
     fun pageByName(sourceId: Long, kind: String): PagingSource<Int, VodItemEntity>
 
-    @Query("$ITEMS ORDER BY v.added DESC, v.name COLLATE NOCASE")
+    @Query("$TITLES ORDER BY v.added DESC, v.name COLLATE NOCASE")
     fun pageByAdded(sourceId: Long, kind: String): PagingSource<Int, VodItemEntity>
 
-    @Query("$ITEMS ORDER BY v.year IS NULL, v.year DESC, v.name COLLATE NOCASE")
+    @Query("$TITLES ORDER BY v.year IS NULL, v.year DESC, v.name COLLATE NOCASE")
     fun pageByYear(sourceId: Long, kind: String): PagingSource<Int, VodItemEntity>
 
-    @Query("$ITEMS ORDER BY v.rating IS NULL, v.rating DESC, v.name COLLATE NOCASE")
+    @Query("$TITLES ORDER BY v.rating IS NULL, v.rating DESC, v.name COLLATE NOCASE")
     fun pageByRating(sourceId: Long, kind: String): PagingSource<Int, VodItemEntity>
 
-    @Query("$ITEMS ORDER BY v.added DESC LIMIT :limit")
+    @Query("$TITLES ORDER BY v.added DESC LIMIT :limit")
     suspend fun latest(sourceId: Long, kind: String, limit: Int): List<VodItemEntity>
 
     @Query("$ITEMS AND v.providerId = :providerId LIMIT 1")
     suspend fun get(sourceId: Long, kind: String, providerId: Long): VodItemEntity?
 
+    /** Every copy of a title, the listed one first. */
+    @Query("$ITEMS AND v.groupKey = :groupKey ORDER BY v.isPrimary DESC, v.added DESC, v.providerId")
+    suspend fun group(sourceId: Long, kind: String, groupKey: String): List<VodItemEntity>
+
     /** Simple substring search; catalogues are tens of thousands of rows, which LIKE handles fine. */
     @Query(
-        """SELECT v.* FROM vod_items v $CURRENT WHERE v.sourceId = :sourceId AND v.name LIKE '%' || :term || '%'
+        """SELECT v.* FROM vod_items v $CURRENT WHERE v.sourceId = :sourceId AND v.isPrimary = 1 AND v.name LIKE '%' || :term || '%'
         ORDER BY (v.name LIKE :term || '%') DESC, v.added DESC LIMIT :limit""",
     )
     suspend fun search(sourceId: Long, term: String, limit: Int): List<VodItemEntity>
@@ -111,6 +118,30 @@ interface VodDao {
         SELECT rowid FROM vod_items WHERE sourceId = :sourceId AND generation != :keep LIMIT :limit)""",
     )
     suspend fun deleteOtherGenerations(sourceId: Long, keep: Int, limit: Int): Int
+
+    @Query("UPDATE vod_items SET isPrimary = 0 WHERE sourceId = :sourceId AND generation = :generation")
+    suspend fun clearPrimaries(sourceId: Long, generation: Int)
+
+    /** Picks each title's listed copy: one with a poster if any, then the newest. */
+    @Query(
+        """UPDATE vod_items SET isPrimary = 1 WHERE rowid IN (
+        SELECT (SELECT w.rowid FROM vod_items w
+            WHERE w.sourceId = g.sourceId AND w.generation = g.generation AND w.kind = g.kind AND w.groupKey = g.groupKey
+            ORDER BY w.poster IS NULL OR w.poster = '', w.added DESC, w.providerId LIMIT 1)
+        FROM vod_items g WHERE g.sourceId = :sourceId AND g.generation = :generation GROUP BY g.kind, g.groupKey)""",
+    )
+    suspend fun setPrimaries(sourceId: Long, generation: Int)
+
+    @Transaction
+    suspend fun markPrimaries(sourceId: Long, generation: Int) {
+        clearPrimaries(sourceId, generation)
+        setPrimaries(sourceId, generation)
+    }
+
+    @Query(
+        "SELECT COUNT(*) FROM vod_items WHERE sourceId = :sourceId AND generation = :generation AND kind = :kind AND isPrimary = 1",
+    )
+    suspend fun titleCount(sourceId: Long, generation: Int, kind: String): Int
 
     @Query(
         """UPDATE sources SET vodGeneration = :generation, vodMovieCount = :movies, vodSeriesCount = :series,

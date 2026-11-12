@@ -24,6 +24,8 @@ import com.xfin.core.model.VodStream
 import com.xfin.data.iptv.xtream.XtreamClient
 import com.xfin.data.iptv.xtream.XtreamMovieInfo
 import com.xfin.data.iptv.xtream.XtreamSeriesInfo
+import com.xfin.data.iptv.xtream.VodTitles
+import com.xfin.core.model.MediaVersion
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -104,6 +106,7 @@ class VodRepository @Inject internal constructor(
                             year = m.year,
                             added = m.added,
                             extension = m.extension,
+                            groupKey = VodTitles.groupKey(m.name, m.year),
                         ),
                     )
                 }
@@ -127,12 +130,17 @@ class VodRepository @Inject internal constructor(
                             plot = s.plot,
                             genre = s.genre,
                             backdrop = s.backdrop,
+                            groupKey = VodTitles.groupKey(s.name, s.year),
                         ),
                     )
                 }
             }
         }
-        Perf.log("vod #$sourceId: $movies movies, $series series")
+        // Copies of one title collapse to one card; the rest are offered as its versions.
+        Perf.time("vod groups #$sourceId") { vodDao.markPrimaries(sourceId, generation) }
+        val movieTitles = vodDao.titleCount(sourceId, generation, KIND_MOVIE)
+        val seriesTitles = vodDao.titleCount(sourceId, generation, KIND_SERIES)
+        Perf.log("vod #$sourceId: $movies movies ($movieTitles titles), $series series ($seriesTitles titles)")
         // Keep the previous order if the provider's category lists didn't load this time.
         if (movieCatList.isNotEmpty() || seriesCatList.isNotEmpty()) {
             vodDao.deleteCategories(sourceId)
@@ -141,7 +149,7 @@ class VodRepository @Inject internal constructor(
                     seriesCatList.mapIndexed { i, c -> VodCategoryEntity(sourceId, KIND_SERIES, c.name, i) },
             )
         }
-        vodDao.swap(sourceId, generation, movies, series, System.currentTimeMillis())
+        vodDao.swap(sourceId, generation, movieTitles, seriesTitles, System.currentTimeMillis())
         while (vodDao.deleteOtherGenerations(sourceId, generation, 5_000) > 0) Unit
     }
 
@@ -254,13 +262,17 @@ class VodRepository @Inject internal constructor(
             is VodId.Movie -> {
                 val row = vodDao.get(sourceId, KIND_MOVIE, id.streamId) ?: throw IllegalStateException("This movie is no longer available")
                 val info = movieInfo(sourceId, id.streamId)
-                withProgress(sourceId, row.toItem(info)).copy(isFavorite = vodDao.isFavorite(sourceId, KIND_MOVIE, id.streamId))
+                val copies = copiesOf(row)
+                val item = row.toItem(info).copy(versions = versionsOf(row, copies))
+                withProgress(sourceId, item, sharedWith = item.versions.map { it.id })
+                    .copy(isFavorite = vodDao.isFavorite(sourceId, KIND_MOVIE, id.streamId))
             }
             is VodId.Series, is VodId.Season -> {
                 val seriesId = (id as? VodId.Series)?.seriesId ?: (id as VodId.Season).seriesId
                 val row = vodDao.get(sourceId, KIND_SERIES, seriesId) ?: throw IllegalStateException("This show is no longer available")
                 val info = seriesInfo(sourceId, seriesId)
                 row.toItem().copy(
+                    versions = versionsOf(row, copiesOf(row)),
                     overview = info?.plot ?: row.plot,
                     backdropUrl = info?.backdrop ?: row.backdrop,
                     genres = (info?.genre ?: row.genre).splitGenres(),
@@ -357,10 +369,20 @@ class VodRepository @Inject internal constructor(
 
     // --- Playback & progress ---
 
-    suspend fun stream(sourceId: Long, itemId: String, startMs: Long): VodStream {
+    /**
+     * The stream for [itemId], or for [versionId] when another copy of the same title was picked.
+     * For a title with copies the stream names the one it plays, so the player can remember it or
+     * offer the others when it fails.
+     */
+    suspend fun stream(sourceId: Long, itemId: String, startMs: Long, versionId: String? = null): VodStream {
         val source = sourceDao.get(sourceId) ?: throw IllegalStateException("This source was removed")
         val creds = credentials.xtream(source)
-        val url = when (val id = VodId.parse(itemId)) {
+        val playId = versionId?.takeIf { VodId.isVod(it) } ?: itemId
+        val chosenVersion = (VodId.parse(itemId) as? VodId.Movie)?.let { id ->
+            val row = vodDao.get(sourceId, KIND_MOVIE, id.streamId)
+            if (row != null && copiesOf(row).size > 1) playId else null
+        }
+        val url = when (val id = VodId.parse(playId)) {
             is VodId.Movie -> {
                 val ext = vodDao.get(sourceId, KIND_MOVIE, id.streamId)?.extension ?: movieInfo(sourceId, id.streamId)?.extension ?: "mp4"
                 XtreamClient.movieUrl(creds, id.streamId, ext)
@@ -373,7 +395,7 @@ class VodRepository @Inject internal constructor(
             sourceId = sourceId,
             url = url,
             headers = source.userAgent?.let { mapOf("User-Agent" to it) }.orEmpty(),
-            mediaSourceId = null,
+            mediaSourceId = chosenVersion,
             playSessionId = null,
             playMethod = "DirectPlay",
             isHls = url.substringBefore('?').endsWith(".m3u8"),
@@ -411,6 +433,44 @@ class VodRepository @Inject internal constructor(
     }
 
     private suspend fun withProgress(sourceId: Long, item: MediaItem) = withProgress(sourceId, listOf(item)).first()
+
+    /** [item] with the most recent progress saved under it or any of [sharedWith] (its other copies). */
+    private suspend fun withProgress(sourceId: Long, item: MediaItem, sharedWith: List<String>): MediaItem {
+        val ids = (sharedWith + item.id).distinct()
+        if (ids.size < 2) return withProgress(sourceId, item)
+        val p = vodDao.progressFor(sourceId, ids).maxByOrNull { it.updatedAt } ?: return item
+        return item.copy(positionMs = p.positionMs, played = p.played, runtimeMs = item.runtimeMs ?: p.durationMs.takeIf { it > 0 })
+    }
+
+    /** Every copy of [row]'s title (just [row] for rows imported before titles were grouped). */
+    private suspend fun copiesOf(row: VodItemEntity): List<VodItemEntity> =
+        if (row.groupKey.isEmpty()) listOf(row) else vodDao.group(row.sourceId, row.kind, row.groupKey).ifEmpty { listOf(row) }
+
+    /**
+     * The copies as versions, named by quality ("4K") or else their category, with the provider's
+     * own name and container as details; empty when there is only one.
+     */
+    private fun versionsOf(row: VodItemEntity, copies: List<VodItemEntity>): List<MediaVersion> {
+        if (copies.size < 2) return emptyList()
+        val prefix = if (row.kind == KIND_SERIES) "xs" else "xm"
+        val named = copies.mapIndexed { i, c ->
+            val quality = VodTitles.qualityLabel(c.name, c.category)
+            val name = quality ?: c.category ?: "Version ${i + 1}"
+            val details = listOfNotNull(
+                c.name,
+                c.category?.takeIf { it != name },
+                c.extension?.uppercase(),
+            ).joinToString(" · ")
+            MediaVersion(id = "$prefix:${c.providerId}", name = name, details = details)
+        }
+        // Two "4K" copies would be indistinguishable in the picker: number them.
+        val counts = named.groupingBy { it.name }.eachCount()
+        val seen = HashMap<String, Int>()
+        return named.map { v ->
+            if ((counts[v.name] ?: 0) < 2) v
+            else v.copy(name = "${v.name} (${seen.merge(v.name, 1, Int::plus)})")
+        }
+    }
 
     private suspend fun withProgress(sourceId: Long, items: List<MediaItem>): List<MediaItem> {
         if (items.isEmpty()) return items

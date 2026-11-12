@@ -35,6 +35,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Replay
@@ -127,6 +128,19 @@ internal fun ItemDetailScreen(
         )
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // A show listed more than once by the provider: which copy's seasons and episodes to show.
+    var pickingSeriesCopy by remember { mutableStateOf(false) }
+    state.item?.takeIf { pickingSeriesCopy && it.versions.size > 1 }?.let { series ->
+        VersionPicker(
+            item = series,
+            selectedId = state.seriesCopyId,
+            onPick = { version ->
+                pickingSeriesCopy = false
+                viewModel.selectSeriesCopy(version.id)
+            },
+            onDismiss = { pickingSeriesCopy = false },
+        )
+    }
     val isTv = LocalIsTv.current
     var returned by remember { mutableStateOf(false) }
     // Refresh progress after coming back from the player.
@@ -212,7 +226,7 @@ internal fun ItemDetailScreen(
                         )
                     }
                     Spacer(Modifier.height(20.dp))
-                    Actions(item, state.upNext, playFocus, play, viewModel::togglePlayed, viewModel::toggleFavorite)
+                    Actions(item, state.upNext, playFocus, play, viewModel::togglePlayed, viewModel::toggleFavorite) { pickingSeriesCopy = true }
                     item.overview?.let { Overview(it, Modifier.padding(top = 20.dp)) }
                 }
             }
@@ -354,6 +368,7 @@ private fun Actions(
     onPlay: (MediaItem, Long) -> Unit,
     onTogglePlayed: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onPickSeriesCopy: () -> Unit,
 ) {
     // Wraps on phones, where Play, From start, Mark watched and Favorite don't fit on one line.
     FlowRow(
@@ -401,6 +416,10 @@ private fun Actions(
                 description = if (item.isFavorite) "Remove from favorites" else "Add to favorites",
                 tint = if (item.isFavorite) XfinColors.Favorite else Color.Unspecified,
             )
+        }
+        // Movies pick their version when played; a show picks the copy its episodes come from.
+        if (item.kind == MediaKind.SERIES && item.versions.size > 1) {
+            ActionIconButton(onClick = onPickSeriesCopy, icon = Icons.Rounded.Layers, description = "Version", tint = Color.Unspecified)
         }
     }
     if (item.canResume && item.kind != MediaKind.SERIES) {

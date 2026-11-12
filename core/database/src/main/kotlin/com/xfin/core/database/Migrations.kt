@@ -175,3 +175,19 @@ internal val MIGRATION_10_11 = object : Migration(10, 11) {
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_group_icons_name` ON `group_icons` (`name`)")
     }
 }
+
+/**
+ * v12: duplicate VOD titles become versions of one title. Existing rows stay visible (primary) until
+ * the catalogue is re-imported, which clearing vodUpdatedAt makes happen on the next stale check.
+ */
+internal val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `vod_items` ADD COLUMN `groupKey` TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE `vod_items` ADD COLUMN `isPrimary` INTEGER NOT NULL DEFAULT 1")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_vod_items_sourceId_generation_kind_groupKey` ON `vod_items` " +
+                "(`sourceId`, `generation`, `kind`, `groupKey`)",
+        )
+        db.execSQL("UPDATE `sources` SET `vodUpdatedAt` = NULL WHERE `type` = 'XTREAM'")
+    }
+}

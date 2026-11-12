@@ -130,7 +130,7 @@ class LibraryRepository @Inject constructor(
         allowDirect: Boolean = true,
         mediaSourceId: String? = null,
     ): VodStream = if (isVod(sourceId)) {
-        vod.stream(sourceId, itemId, startMs)
+        vod.stream(sourceId, itemId, startMs, versionId = mediaSourceId)
     } else {
         jellyfin.playback(sourceId, itemId, startMs, allowDirect = allowDirect, mediaSourceId = mediaSourceId)
     }

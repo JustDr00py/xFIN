@@ -28,6 +28,8 @@ data class ItemDetailState(
     val episodes: List<MediaItem> = emptyList(),
     val episodesLoading: Boolean = false,
     val upNext: MediaItem? = null,
+    /** For a show with several copies, the one whose seasons and episodes are shown. */
+    val seriesCopyId: String? = null,
     /** e.g. "blockbustr · Jellyfin" or "mmp · IPTV". */
     val source: String? = null,
     val loading: Boolean = true,
@@ -98,8 +100,13 @@ class ItemDetailViewModel @Inject constructor(
                     ?.let { "${it.name} · ${if (it.type == SourceType.JELLYFIN) "Jellyfin" else "IPTV"}" }
                 _state.update { it.copy(item = item, source = source, loading = false, error = null) }
                 if (item.kind == MediaKind.SERIES) {
-                    val seasons = jellyfin.seasons(sourceId, item.id)
-                    val upNext = runCatching { jellyfin.seriesNextEpisode(sourceId, item.id) }.getOrNull()
+                    // Opening a season keeps its copy; otherwise the copy picked last time.
+                    val copy = if (preselectSeason != null) item.id else versionFor(item)?.id ?: item.id
+                    if (copy != _state.value.seriesCopyId) {
+                        _state.update { it.copy(seriesCopyId = copy, selectedSeasonId = null, seasons = emptyList(), episodes = emptyList(), upNext = null) }
+                    }
+                    val seasons = jellyfin.seasons(sourceId, copy)
+                    val upNext = runCatching { jellyfin.seriesNextEpisode(sourceId, copy) }.getOrNull()
                     val season = preselectSeason ?: _state.value.selectedSeasonId
                         ?: upNext?.seasonId
                         ?: seasons.firstOrNull { it.seasonNumber != 0 }?.id
@@ -113,8 +120,15 @@ class ItemDetailViewModel @Inject constructor(
         }
     }
 
+    /** Shows another copy of this show (remembered for next time). */
+    fun selectSeriesCopy(copyId: String) {
+        val item = _state.value.item ?: return
+        versions.set(item.id, copyId)
+        load()
+    }
+
     fun selectSeason(seasonId: String) {
-        val seriesId = _state.value.item?.id ?: return
+        val seriesId = _state.value.seriesCopyId ?: _state.value.item?.id ?: return
         _state.update { it.copy(selectedSeasonId = seasonId, episodesLoading = true) }
         viewModelScope.launch {
             val episodes = runCatching { jellyfin.episodes(sourceId, seriesId, seasonId) }.getOrDefault(emptyList())
