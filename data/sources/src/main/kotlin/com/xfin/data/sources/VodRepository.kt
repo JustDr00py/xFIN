@@ -106,6 +106,7 @@ class VodRepository @Inject internal constructor(
                             year = m.year,
                             added = m.added,
                             extension = m.extension,
+                            title = VodTitles.displayTitle(m.name),
                             groupKey = VodTitles.groupKey(m.name, m.year),
                         ),
                     )
@@ -130,6 +131,7 @@ class VodRepository @Inject internal constructor(
                             plot = s.plot,
                             genre = s.genre,
                             backdrop = s.backdrop,
+                            title = VodTitles.displayTitle(s.name),
                             groupKey = VodTitles.groupKey(s.name, s.year),
                         ),
                     )
@@ -297,7 +299,7 @@ class VodRepository @Inject internal constructor(
                 name = s.name,
                 posterUrl = s.cover ?: row?.poster,
                 seriesId = seriesItemId,
-                seriesName = row?.name,
+                seriesName = row?.shownName,
                 seasonNumber = s.number,
             )
         }
@@ -320,7 +322,7 @@ class VodRepository @Inject internal constructor(
                 thumbUrl = e.image ?: info.backdrop ?: row?.backdrop,
                 backdropUrl = info.backdrop ?: row?.backdrop,
                 seriesId = seriesItemId,
-                seriesName = row?.name,
+                seriesName = row?.shownName,
                 seasonId = "xs:$seriesId:${e.season}",
                 seasonNumber = e.season,
                 episodeNumber = e.number,
@@ -500,7 +502,7 @@ class VodRepository @Inject internal constructor(
         id = if (kind == KIND_SERIES) "xs:$providerId" else "xm:$providerId",
         sourceId = sourceId,
         kind = if (kind == KIND_SERIES) MediaKind.SERIES else MediaKind.MOVIE,
-        name = name,
+        name = shownName,
         overview = info?.plot ?: plot,
         year = year ?: info?.year,
         runtimeMs = info?.durationMs,
@@ -510,6 +512,9 @@ class VodRepository @Inject internal constructor(
         communityRating = rating ?: info?.rating,
         genres = (info?.genre ?: genre).splitGenres(),
     )
+
+    /** The clean title, or the provider's name for rows imported before titles were cleaned. */
+    private val VodItemEntity.shownName: String get() = title.ifEmpty { name }
 
     private fun String?.splitGenres(): List<String> =
         this?.split(',', '/', '|')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()

@@ -23,24 +23,24 @@ private const val ITEMS = "SELECT v.* FROM vod_items v $CURRENT WHERE v.sourceId
 private const val TITLES = "$ITEMS AND v.isPrimary = 1"
 
 /** ORDER BY clauses for category queries, matching the fixed sorts above. */
-const val VOD_ORDER_NAME = "v.name COLLATE NOCASE"
-const val VOD_ORDER_ADDED = "v.added DESC, v.name COLLATE NOCASE"
-const val VOD_ORDER_YEAR = "v.year IS NULL, v.year DESC, v.name COLLATE NOCASE"
-const val VOD_ORDER_RATING = "v.rating IS NULL, v.rating DESC, v.name COLLATE NOCASE"
+const val VOD_ORDER_NAME = "v.title COLLATE NOCASE"
+const val VOD_ORDER_ADDED = "v.added DESC, v.title COLLATE NOCASE"
+const val VOD_ORDER_YEAR = "v.year IS NULL, v.year DESC, v.title COLLATE NOCASE"
+const val VOD_ORDER_RATING = "v.rating IS NULL, v.rating DESC, v.title COLLATE NOCASE"
 private val ORDERS = setOf(VOD_ORDER_NAME, VOD_ORDER_ADDED, VOD_ORDER_YEAR, VOD_ORDER_RATING)
 
 @Dao
 interface VodDao {
-    @Query("$TITLES ORDER BY v.name COLLATE NOCASE")
+    @Query("$TITLES ORDER BY v.title COLLATE NOCASE")
     fun pageByName(sourceId: Long, kind: String): PagingSource<Int, VodItemEntity>
 
-    @Query("$TITLES ORDER BY v.added DESC, v.name COLLATE NOCASE")
+    @Query("$TITLES ORDER BY v.added DESC, v.title COLLATE NOCASE")
     fun pageByAdded(sourceId: Long, kind: String): PagingSource<Int, VodItemEntity>
 
-    @Query("$TITLES ORDER BY v.year IS NULL, v.year DESC, v.name COLLATE NOCASE")
+    @Query("$TITLES ORDER BY v.year IS NULL, v.year DESC, v.title COLLATE NOCASE")
     fun pageByYear(sourceId: Long, kind: String): PagingSource<Int, VodItemEntity>
 
-    @Query("$TITLES ORDER BY v.rating IS NULL, v.rating DESC, v.name COLLATE NOCASE")
+    @Query("$TITLES ORDER BY v.rating IS NULL, v.rating DESC, v.title COLLATE NOCASE")
     fun pageByRating(sourceId: Long, kind: String): PagingSource<Int, VodItemEntity>
 
     @Query("$TITLES ORDER BY v.added DESC LIMIT :limit")
@@ -53,10 +53,11 @@ interface VodDao {
     @Query("$ITEMS AND v.groupKey = :groupKey ORDER BY v.isPrimary DESC, v.added DESC, v.providerId")
     suspend fun group(sourceId: Long, kind: String, groupKey: String): List<VodItemEntity>
 
-    /** Simple substring search; catalogues are tens of thousands of rows, which LIKE handles fine. */
+    /** Substring search on the shown title or the provider's name; catalogues are tens of thousands of rows, which LIKE handles fine. */
     @Query(
-        """SELECT v.* FROM vod_items v $CURRENT WHERE v.sourceId = :sourceId AND v.isPrimary = 1 AND v.name LIKE '%' || :term || '%'
-        ORDER BY (v.name LIKE :term || '%') DESC, v.added DESC LIMIT :limit""",
+        """SELECT v.* FROM vod_items v $CURRENT WHERE v.sourceId = :sourceId AND v.isPrimary = 1
+        AND (v.title LIKE '%' || :term || '%' OR v.name LIKE '%' || :term || '%')
+        ORDER BY (v.title LIKE :term || '%') DESC, v.added DESC LIMIT :limit""",
     )
     suspend fun search(sourceId: Long, term: String, limit: Int): List<VodItemEntity>
 

@@ -59,6 +59,19 @@ class VodTitlesTest {
     }
 
     @Test
+    fun `display titles drop provider decoration`() {
+        assertEquals("Mamma Mia!", VodTitles.displayTitle("EN ▎ Mamma Mia!"))
+        assertEquals("Mamma Mia!", VodTitles.displayTitle("EN - Mamma Mia! - 2008 [MULTI-SUB]"))
+        assertEquals("Mamma Mia!", VodTitles.displayTitle("EN - Mamma Mia! 4K [MULTI-SUB] - 2008"))
+        assertEquals("Mamma Mia! I Have A Dream", VodTitles.displayTitle("EN - Mamma Mia! I Have A Dream (2023)"))
+        assertEquals("The Magnificent Seven", VodTitles.displayTitle("EN | The Magnificent Seven"))
+        assertEquals("Spider-Man: No Way Home", VodTitles.displayTitle("Spider-Man: No Way Home"))
+        assertEquals("1917", VodTitles.displayTitle("EN | 1917"))
+        assertEquals("Up", VodTitles.displayTitle("Up"))
+        assertEquals("[4K]", VodTitles.displayTitle("[4K]"))
+    }
+
+    @Test
     fun `quality labels`() {
         assertEquals("4K", VodTitles.qualityLabel("EN | David", "EN | 4K MOVIES"))
         assertEquals("FHD", VodTitles.qualityLabel("Dune 1080p", null))

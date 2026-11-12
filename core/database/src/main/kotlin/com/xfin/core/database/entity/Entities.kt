@@ -52,6 +52,7 @@ data class SourceEntity(
         Index(value = ["sourceId", "generation", "kind", "name"]),
         Index(value = ["sourceId", "generation", "kind", "category"]),
         Index(value = ["sourceId", "generation", "kind", "groupKey"]),
+        Index(value = ["sourceId", "generation", "kind", "title"]),
     ],
 )
 data class VodItemEntity(
@@ -70,6 +71,8 @@ data class VodItemEntity(
     val plot: String? = null,
     val genre: String? = null,
     val backdrop: String? = null,
+    /** [name] without the provider's language prefix, tags and year; shown and sorted by. */
+    @ColumnInfo(defaultValue = "") val title: String = "",
     /** Copies of one title share this key (see VodTitles); they're shown as versions of it. */
     @ColumnInfo(defaultValue = "") val groupKey: String = "",
     /** The copy that represents its group in lists that show each title once. */

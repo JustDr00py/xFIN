@@ -198,3 +198,19 @@ internal val MIGRATION_12_13 = object : Migration(12, 13) {
         db.execSQL("UPDATE `sources` SET `vodUpdatedAt` = NULL WHERE `type` = 'XTREAM'")
     }
 }
+
+/**
+ * v14: a clean display title for VOD ("EN ▎ Mamma Mia! - 2008" → "Mamma Mia!"), shown and sorted by.
+ * Until the re-import fills it, it's the provider's name.
+ */
+internal val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `vod_items` ADD COLUMN `title` TEXT NOT NULL DEFAULT ''")
+        db.execSQL("UPDATE `vod_items` SET `title` = `name`")
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_vod_items_sourceId_generation_kind_title` ON `vod_items` " +
+                "(`sourceId`, `generation`, `kind`, `title`)",
+        )
+        db.execSQL("UPDATE `sources` SET `vodUpdatedAt` = NULL WHERE `type` = 'XTREAM'")
+    }
+}

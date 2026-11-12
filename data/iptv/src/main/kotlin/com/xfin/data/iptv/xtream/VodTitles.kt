@@ -41,6 +41,12 @@ object VodTitles {
         return "${normalized.ifEmpty { name.trim().lowercase() }}|${year ?: nameYear ?: ""}"
     }
 
+    /**
+     * The name to show: without the language prefix, tags ("[MULTI-SUB]", "4K") and trailing year,
+     * which the app shows on its own ("EN ▎ Mamma Mia! - 2008 [MULTI-SUB]" → "Mamma Mia!").
+     */
+    fun displayTitle(name: String): String = clean(name).first.ifEmpty { name.trim() }
+
     /** A short quality tag for naming a version ("4K", "FHD"), from its name or else its category. */
     fun qualityLabel(name: String, category: String?): String? {
         for (text in listOfNotNull(name, category)) {
@@ -68,7 +74,7 @@ object VodTitles {
                 s = stripped
             }
         }
-        s = s.replace(EMPTY_PARENS, " ").trim().trimEnd('-', '–', '|', ':').trim()
+        s = s.replace(EMPTY_PARENS, " ").replace(WHITESPACE, " ").trim().trimEnd('-', '–', '|', ':').trim()
         return s to year
     }
 }
