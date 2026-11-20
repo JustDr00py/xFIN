@@ -58,7 +58,7 @@ internal fun LibraryHomeScreen(
     onSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     onPlayChannel: (Long) -> Unit = {},
-    onOpenRecentGuide: () -> Unit = {},
+    onOpenGuide: () -> Unit = {},
     viewModel: LibraryHomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -131,7 +131,7 @@ internal fun LibraryHomeScreen(
         item(key = "tv-guide") { RecentChannelsSection(
                 gutter,
                 onPlayChannel = onPlayChannel,
-                onViewAll = onOpenRecentGuide,
+                onViewAll = onOpenGuide,
                 upTarget = if (hero.isEmpty()) null else heroFocus,
             ) }
         servers.forEach { home ->

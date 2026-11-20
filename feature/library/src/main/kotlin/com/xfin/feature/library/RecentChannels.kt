@@ -68,7 +68,7 @@ class RecentChannelsViewModel @Inject constructor(
 private const val ROWS = 4
 
 /**
- * Home's "TV Guide": the last few channels watched, each with what's on now and next, like UHF.
+ * Home's "Recently Watched": the last few channels watched, each with what's on now and next, like UHF.
  * Hidden until a channel has been watched.
  */
 @Composable
@@ -89,7 +89,7 @@ internal fun RecentChannelsSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = gutter, end = gutter - 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("TV Guide", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text("Recently Watched", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
             TextButton(onClick = onViewAll, modifier = Modifier.focusRequester(viewAll)) { Text("View all") }
         }
         for (i in 0 until minOf(ROWS, channels.itemCount)) {
