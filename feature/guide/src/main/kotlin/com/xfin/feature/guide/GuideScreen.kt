@@ -111,6 +111,13 @@ internal fun GuideScreen(
             if (isTv) Text("Guide", style = MaterialTheme.typography.headlineMedium, maxLines = 1, softWrap = false)
             if (refresh is EpgRefreshState.Running) {
                 CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                Text(
+                    "Updating guide…",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false,
+                )
             }
             // The picker takes whatever room is left and ellipsizes long group names, so the
             // fixed-size buttons beside it never get squeezed.

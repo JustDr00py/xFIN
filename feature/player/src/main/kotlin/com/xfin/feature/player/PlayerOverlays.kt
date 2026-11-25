@@ -477,6 +477,8 @@ internal fun OptionsPanel(
     scale: VideoScale,
     onScale: (VideoScale) -> Unit,
     onClose: () -> Unit,
+    hood: Boolean = false,
+    onStats: () -> Unit = {},
 ) {
     val firstFocus = remember { FocusRequester() }
     LazyColumn(
@@ -519,6 +521,8 @@ internal fun OptionsPanel(
             }
         }
         videoScaleItems(scale, onScale)
+        item { PanelHeader("Info") }
+        item { PanelItem("Under the Hood", selected = hood, leading = Icons.Rounded.Speed, onClick = onStats) }
         item {
             Spacer(Modifier.height(8.dp))
             PanelItem("Close", onClick = onClose)

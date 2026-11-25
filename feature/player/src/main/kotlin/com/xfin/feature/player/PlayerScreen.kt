@@ -369,6 +369,8 @@ internal fun PlayerScreen(
                 scale = scale.value,
                 onScale = scale::set,
                 onClose = { panelOpen = false },
+                hood = hood,
+                onStats = { hood = !hood },
             )
         }
     }
